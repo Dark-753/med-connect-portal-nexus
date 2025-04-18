@@ -4,7 +4,28 @@ import { useAuth } from '@/components/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Shield, Users, UserCheck, UserX } from 'lucide-react';
+import { Shield, Users, UserCheck, UserX, Trash2, PlusCircle } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog";
+import { toast } from "@/components/ui/use-toast";
 
 const AdminDashboard = () => {
   const { user, approveDoctorRegistration } = useAuth();
@@ -16,9 +37,16 @@ const AdminDashboard = () => {
     { id: 'doctor-4', name: 'Dr. Brown', email: 'brown@example.com', specialization: 'Neurology' },
   ]);
   
-  // Mock data for doctors
-  const [approvedDoctors] = useState([
-    { id: 'doctor-1', name: 'Dr. Smith', email: 'doctor@example.com', specialization: 'General Medicine' },
+  // Mock data for doctors with hospital details
+  const [approvedDoctors, setApprovedDoctors] = useState([
+    { 
+      id: 'doctor-1', 
+      name: 'Dr. Smith', 
+      email: 'doctor@example.com', 
+      specialization: 'General Medicine',
+      hospital: 'St. Mary\'s Hospital',
+      experience: '10 years'
+    },
   ]);
   
   // Mock data for users
@@ -28,9 +56,66 @@ const AdminDashboard = () => {
     { id: 'user-3', name: 'Bob Smith', email: 'bob@example.com' },
   ]);
 
+  // State for hospital details form
+  const [doctorToEdit, setDoctorToEdit] = useState<string | null>(null);
+  const [hospitalDetails, setHospitalDetails] = useState({
+    hospital: '',
+    experience: ''
+  });
+
   const handleApprove = (doctorId: string) => {
     approveDoctorRegistration(doctorId);
-    setPendingDoctors(pendingDoctors.filter(doctor => doctor.id !== doctorId));
+    
+    // Move doctor from pending to approved
+    const doctorToMove = pendingDoctors.find(doctor => doctor.id === doctorId);
+    if (doctorToMove) {
+      const updatedApproved = [...approvedDoctors, {
+        ...doctorToMove,
+        hospital: '',
+        experience: ''
+      }];
+      setApprovedDoctors(updatedApproved);
+      setPendingDoctors(pendingDoctors.filter(doctor => doctor.id !== doctorId));
+    }
+  };
+
+  const handleRemoveDoctor = (doctorId: string) => {
+    setApprovedDoctors(approvedDoctors.filter(doctor => doctor.id !== doctorId));
+    toast({
+      title: "Doctor Removed",
+      description: "The doctor has been removed from the system",
+    });
+  };
+
+  const handleUpdateHospitalDetails = () => {
+    if (!doctorToEdit) return;
+    
+    setApprovedDoctors(approvedDoctors.map(doctor => {
+      if (doctor.id === doctorToEdit) {
+        return {
+          ...doctor,
+          hospital: hospitalDetails.hospital,
+          experience: hospitalDetails.experience
+        };
+      }
+      return doctor;
+    }));
+    
+    toast({
+      title: "Hospital Details Updated",
+      description: "The doctor's hospital details have been updated",
+    });
+    
+    setDoctorToEdit(null);
+    setHospitalDetails({ hospital: '', experience: '' });
+  };
+
+  const openEditDialog = (doctor: typeof approvedDoctors[0]) => {
+    setDoctorToEdit(doctor.id);
+    setHospitalDetails({
+      hospital: doctor.hospital || '',
+      experience: doctor.experience || ''
+    });
   };
 
   return (
@@ -63,36 +148,34 @@ const AdminDashboard = () => {
               {pendingDoctors.length === 0 ? (
                 <p className="text-gray-500">No pending doctor registration requests.</p>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b">
-                        <th className="py-2 text-left">Name</th>
-                        <th className="py-2 text-left">Email</th>
-                        <th className="py-2 text-left">Specialization</th>
-                        <th className="py-2 text-left">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {pendingDoctors.map(doctor => (
-                        <tr key={doctor.id} className="border-b hover:bg-gray-50">
-                          <td className="py-3">{doctor.name}</td>
-                          <td className="py-3">{doctor.email}</td>
-                          <td className="py-3">{doctor.specialization}</td>
-                          <td className="py-3">
-                            <Button 
-                              variant="outline" 
-                              className="border-green-500 text-green-500 hover:bg-green-50"
-                              onClick={() => handleApprove(doctor.id)}
-                            >
-                              Approve
-                            </Button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Specialization</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {pendingDoctors.map(doctor => (
+                      <TableRow key={doctor.id}>
+                        <TableCell>{doctor.name}</TableCell>
+                        <TableCell>{doctor.email}</TableCell>
+                        <TableCell>{doctor.specialization}</TableCell>
+                        <TableCell>
+                          <Button 
+                            variant="outline" 
+                            className="border-green-500 text-green-500 hover:bg-green-50"
+                            onClick={() => handleApprove(doctor.id)}
+                          >
+                            Approve
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               )}
             </CardContent>
           </Card>
@@ -109,30 +192,85 @@ const AdminDashboard = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b">
-                        <th className="py-2 text-left">Name</th>
-                        <th className="py-2 text-left">Email</th>
-                        <th className="py-2 text-left">Specialization</th>
-                        <th className="py-2 text-left">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {approvedDoctors.map(doctor => (
-                        <tr key={doctor.id} className="border-b hover:bg-gray-50">
-                          <td className="py-3">{doctor.name}</td>
-                          <td className="py-3">{doctor.email}</td>
-                          <td className="py-3">{doctor.specialization}</td>
-                          <td className="py-3">
-                            <Badge className="bg-green-500">Active</Badge>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Specialization</TableHead>
+                      <TableHead>Hospital</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {approvedDoctors.map(doctor => (
+                      <TableRow key={doctor.id}>
+                        <TableCell>{doctor.name}</TableCell>
+                        <TableCell>{doctor.email}</TableCell>
+                        <TableCell>{doctor.specialization}</TableCell>
+                        <TableCell>
+                          {doctor.hospital ? `${doctor.hospital} (${doctor.experience})` : 'Not set'}
+                        </TableCell>
+                        <TableCell className="flex space-x-2">
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                className="text-blue-500 border-blue-500 hover:bg-blue-50"
+                                onClick={() => openEditDialog(doctor)}
+                              >
+                                <PlusCircle className="h-4 w-4 mr-1" /> Hospital
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                              <DialogHeader>
+                                <DialogTitle>Update Hospital Details</DialogTitle>
+                                <DialogDescription>
+                                  Add or update hospital details for {doctor.name}
+                                </DialogDescription>
+                              </DialogHeader>
+                              <div className="grid gap-4 py-4">
+                                <div className="grid gap-2">
+                                  <Label htmlFor="hospital">Hospital</Label>
+                                  <Input 
+                                    id="hospital" 
+                                    value={hospitalDetails.hospital}
+                                    onChange={(e) => setHospitalDetails({...hospitalDetails, hospital: e.target.value})}
+                                    placeholder="e.g. St. Mary's Hospital"
+                                  />
+                                </div>
+                                <div className="grid gap-2">
+                                  <Label htmlFor="experience">Experience</Label>
+                                  <Input 
+                                    id="experience" 
+                                    value={hospitalDetails.experience}
+                                    onChange={(e) => setHospitalDetails({...hospitalDetails, experience: e.target.value})}
+                                    placeholder="e.g. 10 years"
+                                  />
+                                </div>
+                              </div>
+                              <DialogFooter>
+                                <DialogClose asChild>
+                                  <Button type="button" variant="secondary">Cancel</Button>
+                                </DialogClose>
+                                <Button onClick={handleUpdateHospitalDetails}>Save Changes</Button>
+                              </DialogFooter>
+                            </DialogContent>
+                          </Dialog>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            className="text-red-500 border-red-500 hover:bg-red-50"
+                            onClick={() => handleRemoveDoctor(doctor.id)}
+                          >
+                            <Trash2 className="h-4 w-4 mr-1" /> Remove
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </CardContent>
             </Card>
             
@@ -147,28 +285,26 @@ const AdminDashboard = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b">
-                        <th className="py-2 text-left">Name</th>
-                        <th className="py-2 text-left">Email</th>
-                        <th className="py-2 text-left">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {users.map(user => (
-                        <tr key={user.id} className="border-b hover:bg-gray-50">
-                          <td className="py-3">{user.name}</td>
-                          <td className="py-3">{user.email}</td>
-                          <td className="py-3">
-                            <Badge className="bg-blue-500">Active</Badge>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {users.map(user => (
+                      <TableRow key={user.id}>
+                        <TableCell>{user.name}</TableCell>
+                        <TableCell>{user.email}</TableCell>
+                        <TableCell>
+                          <Badge className="bg-blue-500">Active</Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </CardContent>
             </Card>
           </div>

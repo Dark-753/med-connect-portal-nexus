@@ -18,6 +18,7 @@ import RegistrationPending from "./pages/RegistrationPending";
 import Dashboard from "./pages/Dashboard";
 import AdminDashboard from "./pages/AdminDashboard";
 import DoctorDashboard from "./pages/DoctorDashboard";
+import XRayVision from "./pages/XRayVision";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -73,7 +74,7 @@ const App = () => (
               path="/xray" 
               element={
                 <ProtectedRoute>
-                  <Dashboard />
+                  <XRayVision />
                 </ProtectedRoute>
               } 
             />
