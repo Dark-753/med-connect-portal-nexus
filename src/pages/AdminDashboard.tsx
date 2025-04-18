@@ -1,10 +1,10 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/components/AuthContext';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Shield, Users, UserCheck, UserX, Trash2, PlusCircle } from 'lucide-react';
+import { Shield, Users, UserCheck, UserX, Trash2, PlusCircle, Phone } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -28,26 +28,11 @@ import {
 import { toast } from "@/components/ui/use-toast";
 
 const AdminDashboard = () => {
-  const { user, approveDoctorRegistration } = useAuth();
+  const { user, approveDoctorRegistration, getAllDoctors } = useAuth();
   
-  // Mock data for pending doctor registrations
-  const [pendingDoctors, setPendingDoctors] = useState([
-    { id: 'doctor-2', name: 'Dr. Johnson', email: 'doctor2@example.com', specialization: 'Cardiology' },
-    { id: 'doctor-3', name: 'Dr. Wilson', email: 'wilson@example.com', specialization: 'Pediatrics' },
-    { id: 'doctor-4', name: 'Dr. Brown', email: 'brown@example.com', specialization: 'Neurology' },
-  ]);
-  
-  // Mock data for doctors with hospital details
-  const [approvedDoctors, setApprovedDoctors] = useState([
-    { 
-      id: 'doctor-1', 
-      name: 'Dr. Smith', 
-      email: 'doctor@example.com', 
-      specialization: 'General Medicine',
-      hospital: 'St. Mary\'s Hospital',
-      experience: '10 years'
-    },
-  ]);
+  // Fetch all doctors from auth context
+  const [pendingDoctors, setPendingDoctors] = useState<any[]>([]);
+  const [approvedDoctors, setApprovedDoctors] = useState<any[]>([]);
   
   // Mock data for users
   const [users] = useState([
@@ -60,8 +45,22 @@ const AdminDashboard = () => {
   const [doctorToEdit, setDoctorToEdit] = useState<string | null>(null);
   const [hospitalDetails, setHospitalDetails] = useState({
     hospital: '',
-    experience: ''
+    experience: '',
+    specialization: '',
+    emergencyPhone: '',
+    emergencyEmail: ''
   });
+
+  useEffect(() => {
+    // Get all doctors and separate them into pending and approved
+    const allDoctors = getAllDoctors();
+    
+    const pending = allDoctors.filter(doctor => !doctor.approved);
+    const approved = allDoctors.filter(doctor => doctor.approved);
+    
+    setPendingDoctors(pending);
+    setApprovedDoctors(approved);
+  }, [getAllDoctors]);
 
   const handleApprove = (doctorId: string) => {
     approveDoctorRegistration(doctorId);
@@ -71,11 +70,15 @@ const AdminDashboard = () => {
     if (doctorToMove) {
       const updatedApproved = [...approvedDoctors, {
         ...doctorToMove,
-        hospital: '',
-        experience: ''
+        approved: true
       }];
       setApprovedDoctors(updatedApproved);
       setPendingDoctors(pendingDoctors.filter(doctor => doctor.id !== doctorId));
+      
+      toast({
+        title: "Doctor Approved",
+        description: `${doctorToMove.name} has been approved and can now access the system`,
+      });
     }
   };
 
@@ -95,26 +98,38 @@ const AdminDashboard = () => {
         return {
           ...doctor,
           hospital: hospitalDetails.hospital,
-          experience: hospitalDetails.experience
+          experience: hospitalDetails.experience,
+          specialization: hospitalDetails.specialization || doctor.specialization,
+          emergencyPhone: hospitalDetails.emergencyPhone,
+          emergencyEmail: hospitalDetails.emergencyEmail
         };
       }
       return doctor;
     }));
     
     toast({
-      title: "Hospital Details Updated",
-      description: "The doctor's hospital details have been updated",
+      title: "Doctor Details Updated",
+      description: "The doctor's details have been updated successfully",
     });
     
     setDoctorToEdit(null);
-    setHospitalDetails({ hospital: '', experience: '' });
+    setHospitalDetails({
+      hospital: '',
+      experience: '',
+      specialization: '',
+      emergencyPhone: '',
+      emergencyEmail: ''
+    });
   };
 
-  const openEditDialog = (doctor: typeof approvedDoctors[0]) => {
+  const openEditDialog = (doctor: any) => {
     setDoctorToEdit(doctor.id);
     setHospitalDetails({
       hospital: doctor.hospital || '',
-      experience: doctor.experience || ''
+      experience: doctor.experience || '',
+      specialization: doctor.specialization || '',
+      emergencyPhone: doctor.emergencyPhone || '',
+      emergencyEmail: doctor.emergencyEmail || ''
     });
   };
 
@@ -162,7 +177,7 @@ const AdminDashboard = () => {
                       <TableRow key={doctor.id}>
                         <TableCell>{doctor.name}</TableCell>
                         <TableCell>{doctor.email}</TableCell>
-                        <TableCell>{doctor.specialization}</TableCell>
+                        <TableCell>{doctor.specialization || 'Not specified'}</TableCell>
                         <TableCell>
                           <Button 
                             variant="outline" 
@@ -199,6 +214,7 @@ const AdminDashboard = () => {
                       <TableHead>Email</TableHead>
                       <TableHead>Specialization</TableHead>
                       <TableHead>Hospital</TableHead>
+                      <TableHead>Emergency</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -207,9 +223,16 @@ const AdminDashboard = () => {
                       <TableRow key={doctor.id}>
                         <TableCell>{doctor.name}</TableCell>
                         <TableCell>{doctor.email}</TableCell>
-                        <TableCell>{doctor.specialization}</TableCell>
+                        <TableCell>{doctor.specialization || 'Not set'}</TableCell>
                         <TableCell>
                           {doctor.hospital ? `${doctor.hospital} (${doctor.experience})` : 'Not set'}
+                        </TableCell>
+                        <TableCell>
+                          {doctor.emergencyPhone && 
+                            <Badge variant="outline" className="bg-red-50 text-red-700 border-red-300 mr-1">
+                              <Phone className="h-3 w-3 mr-1" /> {doctor.emergencyPhone}
+                            </Badge>
+                          }
                         </TableCell>
                         <TableCell className="flex space-x-2">
                           <Dialog>
@@ -220,17 +243,26 @@ const AdminDashboard = () => {
                                 className="text-blue-500 border-blue-500 hover:bg-blue-50"
                                 onClick={() => openEditDialog(doctor)}
                               >
-                                <PlusCircle className="h-4 w-4 mr-1" /> Hospital
+                                <PlusCircle className="h-4 w-4 mr-1" /> Details
                               </Button>
                             </DialogTrigger>
                             <DialogContent>
                               <DialogHeader>
-                                <DialogTitle>Update Hospital Details</DialogTitle>
+                                <DialogTitle>Update Doctor Details</DialogTitle>
                                 <DialogDescription>
-                                  Add or update hospital details for {doctor.name}
+                                  Add or update details for {doctor.name}
                                 </DialogDescription>
                               </DialogHeader>
                               <div className="grid gap-4 py-4">
+                                <div className="grid gap-2">
+                                  <Label htmlFor="specialization">Specialization</Label>
+                                  <Input 
+                                    id="specialization" 
+                                    value={hospitalDetails.specialization}
+                                    onChange={(e) => setHospitalDetails({...hospitalDetails, specialization: e.target.value})}
+                                    placeholder="e.g. Cardiology"
+                                  />
+                                </div>
                                 <div className="grid gap-2">
                                   <Label htmlFor="hospital">Hospital</Label>
                                   <Input 
@@ -247,6 +279,24 @@ const AdminDashboard = () => {
                                     value={hospitalDetails.experience}
                                     onChange={(e) => setHospitalDetails({...hospitalDetails, experience: e.target.value})}
                                     placeholder="e.g. 10 years"
+                                  />
+                                </div>
+                                <div className="grid gap-2">
+                                  <Label htmlFor="emergencyPhone">Emergency Phone</Label>
+                                  <Input 
+                                    id="emergencyPhone" 
+                                    value={hospitalDetails.emergencyPhone}
+                                    onChange={(e) => setHospitalDetails({...hospitalDetails, emergencyPhone: e.target.value})}
+                                    placeholder="e.g. +1 234 567 8900"
+                                  />
+                                </div>
+                                <div className="grid gap-2">
+                                  <Label htmlFor="emergencyEmail">Emergency Email</Label>
+                                  <Input 
+                                    id="emergencyEmail" 
+                                    value={hospitalDetails.emergencyEmail}
+                                    onChange={(e) => setHospitalDetails({...hospitalDetails, emergencyEmail: e.target.value})}
+                                    placeholder="e.g. emergency@hospital.com"
                                   />
                                 </div>
                               </div>

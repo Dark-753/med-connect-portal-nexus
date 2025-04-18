@@ -10,6 +10,11 @@ interface User {
   name: string;
   role: UserRole;
   approved?: boolean;
+  specialization?: string;
+  hospital?: string;
+  experience?: string;
+  emergencyPhone?: string;
+  emergencyEmail?: string;
 }
 
 interface AuthContextType {
@@ -18,8 +23,9 @@ interface AuthContextType {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
-  register: (email: string, password: string, name: string, role: UserRole) => Promise<void>;
+  register: (email: string, password: string, name: string, role: UserRole, specialization?: string) => Promise<void>;
   approveDoctorRegistration: (doctorId: string) => void;
+  getAllDoctors: () => User[];
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -46,6 +52,9 @@ const MOCK_USERS: User[] = [
     name: 'Dr. Smith',
     role: 'doctor',
     approved: true,
+    specialization: 'General Medicine',
+    hospital: "St. Mary's Hospital",
+    experience: "10 years"
   },
   {
     id: 'doctor-2',
@@ -53,6 +62,23 @@ const MOCK_USERS: User[] = [
     name: 'Dr. Johnson',
     role: 'doctor',
     approved: false,
+    specialization: 'Cardiology'
+  },
+  {
+    id: 'doctor-3',
+    email: 'wilson@example.com',
+    name: 'Dr. Wilson',
+    role: 'doctor',
+    approved: false,
+    specialization: 'Pediatrics'
+  },
+  {
+    id: 'doctor-4',
+    email: 'brown@example.com',
+    name: 'Dr. Brown',
+    role: 'doctor',
+    approved: false,
+    specialization: 'Neurology'
   },
 ];
 
@@ -61,6 +87,8 @@ const MOCK_PASSWORDS: Record<string, string> = {
   'user@example.com': 'password123',
   'doctor@example.com': 'doctor123',
   'doctor2@example.com': 'doctor456',
+  'wilson@example.com': 'wilson123',
+  'brown@example.com': 'brown123',
 };
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
@@ -126,7 +154,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     });
   };
 
-  const register = async (email: string, password: string, name: string, role: UserRole) => {
+  const register = async (email: string, password: string, name: string, role: UserRole, specialization?: string) => {
     setIsLoading(true);
     
     // Simulate API delay
@@ -150,6 +178,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       name,
       role,
       approved: role === 'doctor' ? false : true,
+      specialization: role === 'doctor' ? specialization : undefined,
     };
     
     // Update mock users and passwords
@@ -193,6 +222,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       description: "The doctor can now access the system",
     });
   };
+  
+  const getAllDoctors = () => {
+    return mockUsers.filter(user => user.role === 'doctor');
+  };
 
   return (
     <AuthContext.Provider value={{ 
@@ -202,7 +235,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       login,
       logout,
       register,
-      approveDoctorRegistration
+      approveDoctorRegistration,
+      getAllDoctors
     }}>
       {children}
     </AuthContext.Provider>
