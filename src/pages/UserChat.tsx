@@ -34,8 +34,8 @@ const UserChat = () => {
   const { user } = useAuth();
   const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null);
   const [message, setMessage] = useState('');
-  const [selectedHospital, setSelectedHospital] = useState<string>('');
-  const [selectedSpecialization, setSelectedSpecialization] = useState<string>('');
+  const [selectedHospital, setSelectedHospital] = useState<string>('all');
+  const [selectedSpecialization, setSelectedSpecialization] = useState<string>('all');
   const [filteredDoctors, setFilteredDoctors] = useState<Doctor[]>([]);
   
   // Mock doctors data
@@ -56,11 +56,11 @@ const UserChat = () => {
   useEffect(() => {
     let filtered = [...doctors];
     
-    if (selectedHospital) {
+    if (selectedHospital && selectedHospital !== 'all') {
       filtered = filtered.filter(doctor => doctor.hospital === selectedHospital);
     }
     
-    if (selectedSpecialization) {
+    if (selectedSpecialization && selectedSpecialization !== 'all') {
       filtered = filtered.filter(doctor => doctor.specialization === selectedSpecialization);
     }
     
@@ -137,7 +137,7 @@ const UserChat = () => {
                       <SelectValue placeholder="Select hospital" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">All Hospitals</SelectItem>
+                      <SelectItem value="all">All Hospitals</SelectItem>
                       {hospitals.map(hospital => (
                         <SelectItem key={hospital} value={hospital}>{hospital}</SelectItem>
                       ))}
@@ -152,7 +152,7 @@ const UserChat = () => {
                       <SelectValue placeholder="Select specialization" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">All Specializations</SelectItem>
+                      <SelectItem value="all">All Specializations</SelectItem>
                       {specializations.map(spec => (
                         <SelectItem key={spec} value={spec}>{spec}</SelectItem>
                       ))}
