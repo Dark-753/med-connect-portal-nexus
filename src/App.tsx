@@ -21,6 +21,8 @@ import DoctorDashboard from "./pages/DoctorDashboard";
 import DoctorChat from "./pages/DoctorChat";
 import XRayVision from "./pages/XRayVision";
 import NotFound from "./pages/NotFound";
+import UserChat from "./pages/UserChat";
+import AppointmentBooking from "./pages/AppointmentBooking";
 
 const queryClient = new QueryClient();
 
@@ -60,7 +62,7 @@ const App = () => {
                 path="/chat" 
                 element={
                   <ProtectedRoute>
-                    <Dashboard />
+                    <UserChat />
                   </ProtectedRoute>
                 } 
               />
@@ -68,7 +70,7 @@ const App = () => {
                 path="/appointment" 
                 element={
                   <ProtectedRoute>
-                    <Dashboard />
+                    <AppointmentBooking />
                   </ProtectedRoute>
                 } 
               />

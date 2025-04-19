@@ -26,6 +26,7 @@ interface AuthContextType {
   register: (email: string, password: string, name: string, role: UserRole, specialization?: string) => Promise<void>;
   approveDoctorRegistration: (doctorId: string) => void;
   getAllDoctors: () => User[];
+  updateUserEmergencyContact: (userId: string, phone: string, email: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -227,6 +228,43 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return mockUsers.filter(user => user.role === 'doctor');
   };
 
+  // New function to update emergency contacts
+  const updateUserEmergencyContact = (userId: string, phone: string, email: string) => {
+    const updatedUsers = mockUsers.map(user => {
+      if (user.id === userId) {
+        return { 
+          ...user, 
+          emergencyPhone: phone,
+          emergencyEmail: email
+        };
+      }
+      return user;
+    });
+    
+    setMockUsers(updatedUsers);
+    
+    // If the current user is being updated, also update the user state
+    if (user && user.id === userId) {
+      setUser({
+        ...user,
+        emergencyPhone: phone,
+        emergencyEmail: email
+      });
+      
+      // Update localStorage
+      localStorage.setItem('healthhub_user', JSON.stringify({
+        ...user,
+        emergencyPhone: phone,
+        emergencyEmail: email
+      }));
+    }
+    
+    toast({
+      title: "Emergency Contacts Updated",
+      description: "Your emergency contact information has been saved",
+    });
+  };
+
   return (
     <AuthContext.Provider value={{ 
       user, 
@@ -236,7 +274,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       logout,
       register,
       approveDoctorRegistration,
-      getAllDoctors
+      getAllDoctors,
+      updateUserEmergencyContact
     }}>
       {children}
     </AuthContext.Provider>
