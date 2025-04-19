@@ -1,6 +1,8 @@
 
 import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
 import { toast } from "@/components/ui/use-toast";
+import { supabase } from '@/integrations/supabase/client';
+import { Session, User as SupabaseUser } from '@supabase/supabase-js';
 
 type UserRole = 'user' | 'doctor' | 'admin';
 
@@ -31,16 +33,15 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Mock data
-const ADMIN_USER: User = {
-  id: 'admin-1',
-  email: 'admin@healthhub.com',
-  name: 'Admin User',
-  role: 'admin',
-};
-
+// Mock data for demonstration purposes
+// In a real implementation, this data would be stored in the database
 const MOCK_USERS: User[] = [
-  ADMIN_USER,
+  {
+    id: 'admin-1',
+    email: 'admin@healthhub.com',
+    name: 'Admin User',
+    role: 'admin',
+  },
   {
     id: 'user-1',
     email: 'user@example.com',
@@ -92,123 +93,270 @@ const MOCK_PASSWORDS: Record<string, string> = {
   'brown@example.com': 'brown123',
 };
 
+// Helper function to convert Supabase User to our User format
+const mapSupabaseUserToUser = async (supabaseUser: SupabaseUser): Promise<User | null> => {
+  if (!supabaseUser) return null;
+
+  // First try to find a matching mock user (for development/testing)
+  const mockUser = MOCK_USERS.find(u => u.email.toLowerCase() === supabaseUser.email?.toLowerCase());
+  
+  if (mockUser) {
+    return {
+      ...mockUser,
+      id: supabaseUser.id // Use Supabase ID
+    };
+  }
+
+  // Default to basic user if no mock data is found
+  return {
+    id: supabaseUser.id,
+    email: supabaseUser.email || '',
+    name: supabaseUser.user_metadata?.name || 'User',
+    role: (supabaseUser.user_metadata?.role as UserRole) || 'user',
+    approved: supabaseUser.user_metadata?.approved === true
+  };
+};
+
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [session, setSession] = useState<Session | null>(null);
   const [mockUsers, setMockUsers] = useState<User[]>(MOCK_USERS);
 
   useEffect(() => {
-    // Check for saved user in localStorage
-    const savedUser = localStorage.getItem('healthhub_user');
-    if (savedUser) {
-      setUser(JSON.parse(savedUser));
-    }
-    setIsLoading(false);
+    // Set up the auth state listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        setIsLoading(true);
+        
+        if (session?.user) {
+          const mappedUser = await mapSupabaseUserToUser(session.user);
+          setUser(mappedUser);
+          setSession(session);
+          localStorage.setItem('healthhub_user', JSON.stringify(mappedUser));
+        } else {
+          setUser(null);
+          setSession(null);
+          localStorage.removeItem('healthhub_user');
+        }
+        
+        setIsLoading(false);
+      }
+    );
+
+    // Check for existing session
+    const initializeAuth = async () => {
+      setIsLoading(true);
+      
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session?.user) {
+        const mappedUser = await mapSupabaseUserToUser(session.user);
+        setUser(mappedUser);
+        setSession(session);
+      } else {
+        // Check for saved user in localStorage as fallback
+        const savedUser = localStorage.getItem('healthhub_user');
+        if (savedUser) {
+          setUser(JSON.parse(savedUser));
+        }
+      }
+      
+      setIsLoading(false);
+    };
+
+    initializeAuth();
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   const login = async (email: string, password: string) => {
     setIsLoading(true);
     
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const foundUser = mockUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
-    
-    if (!foundUser || MOCK_PASSWORDS[email] !== password) {
+    try {
+      // Try to log in with Supabase
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+      
+      if (error) {
+        // If Supabase authentication fails (development), fall back to mock data
+        const foundUser = mockUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
+        
+        if (!foundUser || MOCK_PASSWORDS[email] !== password) {
+          toast({
+            title: "Login Failed",
+            description: "Invalid email or password",
+            variant: "destructive",
+          });
+          throw new Error('Invalid credentials');
+        }
+
+        if (foundUser.role === 'doctor' && foundUser.approved === false) {
+          toast({
+            title: "Access Denied",
+            description: "Your account is pending approval by an administrator",
+            variant: "destructive",
+          });
+          throw new Error('Doctor account not approved');
+        }
+
+        // Save user to localStorage for mock persistence
+        localStorage.setItem('healthhub_user', JSON.stringify(foundUser));
+        setUser(foundUser);
+        
+        toast({
+          title: "Login Successful (Mock)",
+          description: `Welcome back, ${foundUser.name}!`,
+        });
+      } else if (data.user) {
+        const mappedUser = await mapSupabaseUserToUser(data.user);
+        
+        // For doctors, check if they're approved
+        if (mappedUser?.role === 'doctor' && mappedUser.approved !== true) {
+          toast({
+            title: "Access Denied",
+            description: "Your doctor account is pending approval",
+            variant: "destructive",
+          });
+          await supabase.auth.signOut();
+          throw new Error('Doctor account not approved');
+        }
+        
+        setUser(mappedUser);
+        setSession(data.session);
+        
+        toast({
+          title: "Login Successful",
+          description: `Welcome back, ${mappedUser?.name || 'User'}!`,
+        });
+      }
+    } catch (err: any) {
       toast({
-        title: "Login Failed",
-        description: "Invalid email or password",
+        title: "Login Error",
+        description: err.message || "An error occurred during login",
         variant: "destructive",
       });
+      throw err;
+    } finally {
       setIsLoading(false);
-      throw new Error('Invalid credentials');
     }
-
-    if (foundUser.role === 'doctor' && foundUser.approved === false) {
-      toast({
-        title: "Access Denied",
-        description: "Your account is pending approval by an administrator",
-        variant: "destructive",
-      });
-      setIsLoading(false);
-      throw new Error('Doctor account not approved');
-    }
-
-    // Save user to localStorage
-    localStorage.setItem('healthhub_user', JSON.stringify(foundUser));
-    setUser(foundUser);
-    setIsLoading(false);
-    
-    toast({
-      title: "Login Successful",
-      description: `Welcome back, ${foundUser.name}!`,
-    });
   };
 
-  const logout = () => {
-    localStorage.removeItem('healthhub_user');
-    setUser(null);
-    
-    toast({
-      title: "Logged Out",
-      description: "You have been successfully logged out",
-    });
+  const logout = async () => {
+    setIsLoading(true);
+    try {
+      await supabase.auth.signOut();
+      localStorage.removeItem('healthhub_user');
+      setUser(null);
+      setSession(null);
+      
+      toast({
+        title: "Logged Out",
+        description: "You have been successfully logged out",
+      });
+    } catch (error) {
+      console.error('Logout error:', error);
+      toast({
+        title: "Logout Error",
+        description: "An error occurred during logout",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const register = async (email: string, password: string, name: string, role: UserRole, specialization?: string) => {
     setIsLoading(true);
     
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Check if user already exists
-    if (mockUsers.some(u => u.email.toLowerCase() === email.toLowerCase())) {
+    try {
+      // Check if user already exists in mock data
+      if (mockUsers.some(u => u.email.toLowerCase() === email.toLowerCase())) {
+        toast({
+          title: "Registration Failed",
+          description: "Email already in use",
+          variant: "destructive",
+        });
+        throw new Error('Email already in use');
+      }
+      
+      // Create user with Supabase
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            name,
+            role,
+            approved: role !== 'doctor', // Auto-approve non-doctors
+            specialization: role === 'doctor' ? specialization : undefined
+          }
+        }
+      });
+      
+      if (error) {
+        // Fall back to mock registration if Supabase fails
+        const newUser: User = {
+          id: `${role}-${Date.now()}`,
+          email,
+          name,
+          role,
+          approved: role === 'doctor' ? false : true,
+          specialization: role === 'doctor' ? specialization : undefined,
+        };
+        
+        // Update mock users and passwords
+        const updatedUsers = [...mockUsers, newUser];
+        setMockUsers(updatedUsers);
+        MOCK_PASSWORDS[email] = password;
+
+        // Don't automatically log in doctors that need approval
+        if (role !== 'doctor') {
+          localStorage.setItem('healthhub_user', JSON.stringify(newUser));
+          setUser(newUser);
+        }
+        
+        toast({
+          title: role === 'doctor' ? "Registration Pending (Mock)" : "Registration Successful (Mock)",
+          description: role === 'doctor' 
+            ? "Your account has been created and is awaiting admin approval" 
+            : "Your account has been created",
+        });
+      } else {
+        if (role === 'doctor') {
+          toast({
+            title: "Registration Pending",
+            description: "Your account has been created and is awaiting admin approval",
+          });
+        } else if (data.user) {
+          const mappedUser = await mapSupabaseUserToUser(data.user);
+          setUser(mappedUser);
+          
+          toast({
+            title: "Registration Successful",
+            description: "Your account has been created",
+          });
+        }
+      }
+    } catch (err: any) {
       toast({
-        title: "Registration Failed",
-        description: "Email already in use",
+        title: "Registration Error",
+        description: err.message || "An error occurred during registration",
         variant: "destructive",
       });
+      throw err;
+    } finally {
       setIsLoading(false);
-      throw new Error('Email already in use');
-    }
-    
-    // Create new user
-    const newUser: User = {
-      id: `${role}-${Date.now()}`,
-      email,
-      name,
-      role,
-      approved: role === 'doctor' ? false : true,
-      specialization: role === 'doctor' ? specialization : undefined,
-    };
-    
-    // Update mock users and passwords
-    const updatedUsers = [...mockUsers, newUser];
-    setMockUsers(updatedUsers);
-    MOCK_PASSWORDS[email] = password;
-
-    // Don't automatically log in doctors that need approval
-    if (role !== 'doctor') {
-      localStorage.setItem('healthhub_user', JSON.stringify(newUser));
-      setUser(newUser);
-    }
-    
-    setIsLoading(false);
-    
-    if (role === 'doctor') {
-      toast({
-        title: "Registration Pending",
-        description: "Your account has been created and is awaiting admin approval",
-      });
-    } else {
-      toast({
-        title: "Registration Successful",
-        description: "Your account has been created",
-      });
     }
   };
 
   const approveDoctorRegistration = (doctorId: string) => {
+    // For now, just update the mock data
+    // In a real implementation, this would update the database
     const updatedUsers = mockUsers.map(user => {
       if (user.id === doctorId) {
         return { ...user, approved: true };
@@ -228,7 +376,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return mockUsers.filter(user => user.role === 'doctor');
   };
 
-  // New function to update emergency contacts
   const updateUserEmergencyContact = (userId: string, phone: string, email: string) => {
     const updatedUsers = mockUsers.map(user => {
       if (user.id === userId) {
@@ -245,18 +392,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     
     // If the current user is being updated, also update the user state
     if (user && user.id === userId) {
-      setUser({
+      const updatedUser = {
         ...user,
         emergencyPhone: phone,
         emergencyEmail: email
-      });
+      };
       
-      // Update localStorage
-      localStorage.setItem('healthhub_user', JSON.stringify({
-        ...user,
-        emergencyPhone: phone,
-        emergencyEmail: email
-      }));
+      setUser(updatedUser);
+      
+      // Update localStorage to persist the changes
+      localStorage.setItem('healthhub_user', JSON.stringify(updatedUser));
     }
     
     toast({

@@ -24,9 +24,13 @@ const Login = () => {
     
     try {
       await login(email, password);
+      // Store login state in sessionStorage to persist across refreshes
+      sessionStorage.setItem('isLoggedIn', 'true');
       navigate('/');
     } catch (err: any) {
       setError(err.message || 'Failed to login');
+      // Make sure session is cleared on error
+      sessionStorage.removeItem('isLoggedIn');
     } finally {
       setIsSubmitting(false);
     }
