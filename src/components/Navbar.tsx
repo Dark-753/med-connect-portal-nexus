@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useAuth } from './AuthContext';
-import { LogOut, Menu, X, User } from 'lucide-react';
+import { LogOut, Menu, X, User, MessageSquare } from 'lucide-react';
 
 const Navbar = () => {
   const { user, isAuthenticated, logout } = useAuth();
@@ -30,7 +30,12 @@ const Navbar = () => {
           <Link to="/admin" className="hover:text-accent" onClick={closeMenu}>Admin Dashboard</Link>
         )}
         {user?.role === 'doctor' && (
-          <Link to="/doctor" className="hover:text-accent" onClick={closeMenu}>Doctor Dashboard</Link>
+          <>
+            <Link to="/doctor" className="hover:text-accent" onClick={closeMenu}>Doctor Dashboard</Link>
+            <Link to="/doctor/chat" className="hover:text-accent" onClick={closeMenu}>
+              Patient Chat
+            </Link>
+          </>
         )}
         {user?.role === 'user' && (
           <>

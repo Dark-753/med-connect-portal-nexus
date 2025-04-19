@@ -2,7 +2,9 @@
 import { useAuth } from '@/components/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Calendar, MessageSquare, FileCheck, User, Users } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 const DoctorDashboard = () => {
   const { user } = useAuth();
@@ -25,10 +27,20 @@ const DoctorDashboard = () => {
         <h1 className="text-3xl font-bold mb-6 text-health-dark">Doctor Dashboard</h1>
         
         <div className="bg-white rounded-lg p-6 mb-8 shadow-md">
-          <h2 className="text-xl font-semibold mb-2">Welcome, {user?.name}!</h2>
-          <p className="text-gray-600">
-            Manage your appointments, patient communications, and medical records from your personalized dashboard.
-          </p>
+          <div className="flex justify-between items-center">
+            <div>
+              <h2 className="text-xl font-semibold mb-2">Welcome, {user?.name}!</h2>
+              <p className="text-gray-600">
+                Manage your appointments, patient communications, and medical records from your personalized dashboard.
+              </p>
+            </div>
+            <Link to="/doctor/chat">
+              <Button className="flex items-center gap-2">
+                <MessageSquare className="h-4 w-4" />
+                Open Patient Chat
+              </Button>
+            </Link>
+          </div>
         </div>
         
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
@@ -84,17 +96,26 @@ const DoctorDashboard = () => {
             </CardHeader>
             <CardContent>
               {messages.map(message => (
-                <div 
-                  key={message.id} 
-                  className="p-3 border-b last:border-0 hover:bg-gray-50 cursor-pointer rounded-md mb-2"
+                <Link 
+                  key={message.id}
+                  to="/doctor/chat" 
+                  className="block p-3 border-b last:border-0 hover:bg-gray-50 cursor-pointer rounded-md mb-2"
                 >
                   <div className="flex justify-between mb-1">
                     <h4 className="font-medium">{message.patient}</h4>
                     <span className="text-xs text-gray-500">{message.time}</span>
                   </div>
                   <p className="text-sm text-gray-600 truncate">{message.lastMessage}</p>
-                </div>
+                </Link>
               ))}
+              <div className="mt-4">
+                <Link to="/doctor/chat">
+                  <Button variant="outline" className="w-full">
+                    <MessageSquare className="mr-2 h-4 w-4" />
+                    View All Messages
+                  </Button>
+                </Link>
+              </div>
             </CardContent>
           </Card>
         </div>

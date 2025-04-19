@@ -18,6 +18,7 @@ import RegistrationPending from "./pages/RegistrationPending";
 import Dashboard from "./pages/Dashboard";
 import AdminDashboard from "./pages/AdminDashboard";
 import DoctorDashboard from "./pages/DoctorDashboard";
+import DoctorChat from "./pages/DoctorChat";
 import XRayVision from "./pages/XRayVision";
 import NotFound from "./pages/NotFound";
 
@@ -96,6 +97,14 @@ const App = () => {
                 element={
                   <DoctorRoute>
                     <DoctorDashboard />
+                  </DoctorRoute>
+                } 
+              />
+              <Route 
+                path="/doctor/chat" 
+                element={
+                  <DoctorRoute>
+                    <DoctorChat />
                   </DoctorRoute>
                 } 
               />
