@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -66,6 +67,7 @@ const XRayVision = () => {
           details: `${result.type}: ${result.details}. ${result.severity !== "None" ? 
             "Immediate consultation with a neurologist is recommended." : 
             "No immediate medical intervention required, but regular check-ups are advised."}`,
+          modelName: "BrainTumorDetection-v2" // Including but not displaying to users
         });
       } else {
         const skinConditions = [
@@ -83,6 +85,7 @@ const XRayVision = () => {
           details: `${result.type}: ${result.details}. ${result.severity !== "None" ? 
             "Consultation with a dermatologist is recommended." : 
             "No immediate medical intervention required, but regular skin examinations are advised."}`,
+          modelName: "SkinDiseaseAnalysis-v3" // Including but not displaying to users
         });
       }
       
@@ -199,9 +202,6 @@ const XRayVision = () => {
                       <CardContent>
                         <div className="space-y-4">
                           <div>
-                            <p className="text-sm font-medium">Model: {results.modelName}</p>
-                          </div>
-                          <div>
                             <p className="text-sm font-medium">Confidence Score</p>
                             <div className="w-full bg-gray-200 rounded-full h-2.5 mt-1">
                               <div 
@@ -308,9 +308,6 @@ const XRayVision = () => {
                       </CardHeader>
                       <CardContent>
                         <div className="space-y-4">
-                          <div>
-                            <p className="text-sm font-medium">Model: {results.modelName}</p>
-                          </div>
                           <div>
                             <p className="text-sm font-medium">Confidence Score</p>
                             <div className="w-full bg-gray-200 rounded-full h-2.5 mt-1">
