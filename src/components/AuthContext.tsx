@@ -35,7 +35,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Mock data for demonstration purposes
 // In a real implementation, this data would be stored in the database
-const MOCK_USERS: User[] = [
+const INITIAL_MOCK_USERS: User[] = [
   {
     id: 'admin-1',
     email: 'admin@healthhub.com',
@@ -98,7 +98,9 @@ const mapSupabaseUserToUser = async (supabaseUser: SupabaseUser): Promise<User |
   if (!supabaseUser) return null;
 
   // First try to find a matching mock user (for development/testing)
-  const mockUser = MOCK_USERS.find(u => u.email.toLowerCase() === supabaseUser.email?.toLowerCase());
+  const mockUserString = localStorage.getItem('healthhub_mock_users');
+  const mockUsers = mockUserString ? JSON.parse(mockUserString) : INITIAL_MOCK_USERS;
+  const mockUser = mockUsers.find((u: User) => u.email.toLowerCase() === supabaseUser.email?.toLowerCase());
   
   if (mockUser) {
     return {
@@ -118,10 +120,26 @@ const mapSupabaseUserToUser = async (supabaseUser: SupabaseUser): Promise<User |
 };
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
+  // Load mock users from localStorage on initial render
+  const initialMockUsers = (): User[] => {
+    const storedUsers = localStorage.getItem('healthhub_mock_users');
+    if (storedUsers) {
+      return JSON.parse(storedUsers);
+    }
+    // Initialize localStorage with initial mock users if it doesn't exist
+    localStorage.setItem('healthhub_mock_users', JSON.stringify(INITIAL_MOCK_USERS));
+    return INITIAL_MOCK_USERS;
+  };
+
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [session, setSession] = useState<Session | null>(null);
-  const [mockUsers, setMockUsers] = useState<User[]>(MOCK_USERS);
+  const [mockUsers, setMockUsers] = useState<User[]>(initialMockUsers);
+
+  // Update localStorage whenever mockUsers changes
+  useEffect(() => {
+    localStorage.setItem('healthhub_mock_users', JSON.stringify(mockUsers));
+  }, [mockUsers]);
 
   useEffect(() => {
     // Set up the auth state listener
@@ -355,8 +373,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const approveDoctorRegistration = (doctorId: string) => {
-    // For now, just update the mock data
-    // In a real implementation, this would update the database
+    // Update the mock data
     const updatedUsers = mockUsers.map(user => {
       if (user.id === doctorId) {
         return { ...user, approved: true };
@@ -373,6 +390,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
   
   const getAllDoctors = () => {
+    // Return doctors from the mock data in localStorage
     return mockUsers.filter(user => user.role === 'doctor');
   };
 
