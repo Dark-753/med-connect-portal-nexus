@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/components/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,7 +14,18 @@ interface Doctor {
   id: string;
   name: string;
   specialization: string;
+  hospital?: string;
   availability: string[];
+}
+
+interface StoredUser {
+  id: string;
+  name: string;
+  email: string;
+  role: 'doctor' | 'user' | 'admin';
+  approved?: boolean;
+  specialization?: string;
+  hospital?: string;
 }
 
 const AppointmentBooking = () => {
@@ -22,28 +33,34 @@ const AppointmentBooking = () => {
   const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [selectedTime, setSelectedTime] = useState<string | undefined>(undefined);
+  const [doctors, setDoctors] = useState<Doctor[]>([]);
 
-  // Mock doctors data
-  const doctors: Doctor[] = [
-    { 
-      id: 'doctor-1', 
-      name: 'Dr. Smith', 
-      specialization: 'General Medicine',
-      availability: ['9:00 AM', '10:00 AM', '11:00 AM', '2:00 PM', '3:00 PM']
-    },
-    { 
-      id: 'doctor-2', 
-      name: 'Dr. Johnson', 
-      specialization: 'Cardiology',
-      availability: ['9:30 AM', '10:30 AM', '1:30 PM', '2:30 PM', '4:30 PM']
-    },
-    { 
-      id: 'doctor-3', 
-      name: 'Dr. Wilson', 
-      specialization: 'Pediatrics',
-      availability: ['8:00 AM', '10:00 AM', '12:00 PM', '2:00 PM', '4:00 PM'] 
-    },
-  ];
+  // Load approved doctors from localStorage
+  useEffect(() => {
+    const mockUsersString = localStorage.getItem('healthhub_mock_users');
+    if (mockUsersString) {
+      try {
+        const mockUsers = JSON.parse(mockUsersString);
+        const approvedDoctors = mockUsers
+          .filter((user: StoredUser) => user.role === 'doctor' && user.approved === true)
+          .map((doctor: StoredUser) => ({
+            id: doctor.id,
+            name: doctor.name,
+            specialization: doctor.specialization || 'General Medicine',
+            hospital: doctor.hospital || 'Not specified',
+            // Mock availability times
+            availability: [
+              '9:00 AM', '10:00 AM', '11:00 AM', '2:00 PM', '3:00 PM', '4:00 PM'
+            ]
+          }));
+        
+        console.log('Approved doctors loaded for appointments:', approvedDoctors);
+        setDoctors(approvedDoctors);
+      } catch (error) {
+        console.error('Error parsing mock users:', error);
+      }
+    }
+  }, []);
 
   const handleBookAppointment = () => {
     if (!selectedDoctor || !selectedDate || !selectedTime) {
@@ -98,14 +115,20 @@ const AppointmentBooking = () => {
                     <SelectValue placeholder="Select a doctor" />
                   </SelectTrigger>
                   <SelectContent>
-                    {doctors.map((doctor) => (
-                      <SelectItem key={doctor.id} value={doctor.id}>
-                        <div className="flex flex-col">
-                          <span>{doctor.name}</span>
-                          <span className="text-xs text-gray-500">{doctor.specialization}</span>
-                        </div>
-                      </SelectItem>
-                    ))}
+                    {doctors.length > 0 ? (
+                      doctors.map((doctor) => (
+                        <SelectItem key={doctor.id} value={doctor.id}>
+                          <div className="flex flex-col">
+                            <span>{doctor.name}</span>
+                            <span className="text-xs text-gray-500">
+                              {doctor.specialization} {doctor.hospital ? `at ${doctor.hospital}` : ''}
+                            </span>
+                          </div>
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="no-doctors" disabled>No doctors available</SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -174,6 +197,12 @@ const AppointmentBooking = () => {
                       <User className="mr-2 h-4 w-4" />
                       <span>{selectedDoctor.name} ({selectedDoctor.specialization})</span>
                     </div>
+                    {selectedDoctor.hospital && (
+                      <div className="flex items-center">
+                        <User className="mr-2 h-4 w-4 opacity-0" />
+                        <span>{selectedDoctor.hospital}</span>
+                      </div>
+                    )}
                     <div className="flex items-center">
                       <CalendarIcon className="mr-2 h-4 w-4" />
                       <span>{format(selectedDate, 'PPP')}</span>

@@ -22,6 +22,16 @@ interface Patient {
   unreadCount?: number;
 }
 
+interface Doctor {
+  id: string;
+  name: string;
+  email: string;
+  specialization?: string;
+  hospital?: string;
+  approved: boolean;
+  role: 'doctor';
+}
+
 const DoctorChat = () => {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -30,11 +40,44 @@ const DoctorChat = () => {
   const [chatMessages, setChatMessages] = useState<Record<string, ChatMessage[]>>({});
   
   // Mock patients data
-  const patients: Patient[] = [
+  const [patients, setPatients] = useState<Patient[]>([
     { id: 'user-1', name: 'Jane Doe', lastMessage: 'How are you feeling today?', unreadCount: 2 },
     { id: 'user-2', name: 'John Smith', lastMessage: 'Thank you doctor', unreadCount: 0 },
     { id: 'user-3', name: 'Emily Johnson', lastMessage: 'When should I take the medicine?', unreadCount: 1 },
-  ];
+  ]);
+
+  // Load doctors from localStorage
+  useEffect(() => {
+    // Get all doctors from the mock users in localStorage
+    const mockUsersString = localStorage.getItem('healthhub_mock_users');
+    if (mockUsersString) {
+      try {
+        const mockUsers = JSON.parse(mockUsersString);
+        // Find the current user if they are a doctor
+        const currentDoctor = mockUsers.find((u: any) => 
+          u.role === 'doctor' && 
+          u.approved && 
+          user && 
+          u.id === user.id
+        );
+        
+        if (currentDoctor) {
+          console.log('Current doctor found:', currentDoctor);
+          // If the doctor has hospital info, display it
+          if (currentDoctor.hospital) {
+            toast({
+              title: "Welcome Dr. " + currentDoctor.name,
+              description: `Currently working at ${currentDoctor.hospital}`,
+            });
+          }
+        } else {
+          console.log('Current user is not a doctor or not approved');
+        }
+      } catch (error) {
+        console.error('Error parsing mock users:', error);
+      }
+    }
+  }, [user, toast]);
 
   // Load chat history from localStorage on component mount
   useEffect(() => {

@@ -25,10 +25,20 @@ interface ChatMessage {
 interface Doctor {
   id: string;
   name: string;
-  specialization: string;
-  hospital: string;
+  specialization?: string;
+  hospital?: string;
   lastMessage?: string;
   unreadCount?: number;
+}
+
+interface StoredUser {
+  id: string;
+  name: string;
+  email: string;
+  role: 'doctor' | 'user' | 'admin';
+  approved?: boolean;
+  specialization?: string;
+  hospital?: string;
 }
 
 const UserChat = () => {
@@ -40,16 +50,47 @@ const UserChat = () => {
   const [selectedSpecialization, setSelectedSpecialization] = useState<string>('all');
   const [filteredDoctors, setFilteredDoctors] = useState<Doctor[]>([]);
   const [chatMessages, setChatMessages] = useState<Record<string, ChatMessage[]>>({});
+  const [doctors, setDoctors] = useState<Doctor[]>([]);
+  const [hospitals, setHospitals] = useState<string[]>([]);
+  const [specializations, setSpecializations] = useState<string[]>([]);
   
-  // Mock doctors data
-  const doctors: Doctor[] = [
-    { id: 'doctor-1', name: 'Dr. Smith', specialization: 'General Medicine', hospital: "St. Mary's Hospital", lastMessage: 'How are you feeling today?', unreadCount: 0 },
-    { id: 'doctor-2', name: 'Dr. Johnson', specialization: 'Cardiology', hospital: 'Central Hospital', lastMessage: 'Remember to take your medication', unreadCount: 1 },
-    { id: 'doctor-3', name: 'Dr. Wilson', specialization: 'Pediatrics', hospital: 'Children\'s Medical Center', lastMessage: 'Your test results look good', unreadCount: 0 },
-    { id: 'doctor-4', name: 'Dr. Brown', specialization: 'Neurology', hospital: 'Central Hospital', lastMessage: '', unreadCount: 0 },
-    { id: 'doctor-5', name: 'Dr. Davis', specialization: 'Cardiology', hospital: "St. Mary's Hospital", lastMessage: '', unreadCount: 0 },
-    { id: 'doctor-6', name: 'Dr. Miller', specialization: 'General Medicine', hospital: 'Central Hospital', lastMessage: '', unreadCount: 0 },
-  ];
+  // Load doctors from localStorage
+  useEffect(() => {
+    // Get all doctors from localStorage
+    const mockUsersString = localStorage.getItem('healthhub_mock_users');
+    if (mockUsersString) {
+      try {
+        const mockUsers = JSON.parse(mockUsersString);
+        const approvedDoctors = mockUsers
+          .filter((user: StoredUser) => user.role === 'doctor' && user.approved === true)
+          .map((doctor: StoredUser) => ({
+            id: doctor.id,
+            name: doctor.name,
+            specialization: doctor.specialization || 'General',
+            hospital: doctor.hospital || 'Unknown Hospital',
+            lastMessage: '',
+            unreadCount: 0
+          }));
+        
+        console.log('Approved doctors loaded:', approvedDoctors);
+        setDoctors(approvedDoctors);
+        
+        // Extract unique hospitals and specializations
+        const uniqueHospitals = [...new Set(approvedDoctors
+          .map((doctor: Doctor) => doctor.hospital)
+          .filter(Boolean))] as string[];
+        
+        const uniqueSpecializations = [...new Set(approvedDoctors
+          .map((doctor: Doctor) => doctor.specialization)
+          .filter(Boolean))] as string[];
+        
+        setHospitals(uniqueHospitals);
+        setSpecializations(uniqueSpecializations);
+      } catch (error) {
+        console.error('Error parsing mock users:', error);
+      }
+    }
+  }, []);
 
   // Load chat history from localStorage on component mount
   useEffect(() => {
@@ -57,35 +98,13 @@ const UserChat = () => {
     if (savedChats) {
       setChatMessages(JSON.parse(savedChats));
     } else {
-      // Initialize with mock data if no saved chats
-      const initialChatHistory: Record<string, ChatMessage[]> = {
-        'doctor-1': [
-          { id: 1, content: 'Hello, how can I help you today?', sender: 'doctor', timestamp: '10:30 AM' },
-          { id: 2, content: 'Hi Dr. Smith, I\'ve been having headaches lately', sender: 'patient', timestamp: '10:32 AM' },
-          { id: 3, content: 'How severe are they on a scale of 1-10?', sender: 'doctor', timestamp: '10:33 AM' },
-          { id: 4, content: 'About a 7, and they\'re worse in the morning', sender: 'patient', timestamp: '10:35 AM' },
-          { id: 5, content: 'Have you been experiencing any other symptoms?', sender: 'doctor', timestamp: '10:36 AM' },
-        ],
-        'doctor-2': [
-          { id: 1, content: 'Hello, I\'m Dr. Johnson. I\'ve reviewed your heart tests.', sender: 'doctor', timestamp: '09:15 AM' },
-          { id: 2, content: 'Thanks doctor, what did you find?', sender: 'patient', timestamp: '09:20 AM' },
-          { id: 3, content: 'Everything looks normal. Remember to take your medication as prescribed.', sender: 'doctor', timestamp: '09:22 AM' },
-        ],
-        'doctor-3': [
-          { id: 1, content: 'Hello, I\'m Dr. Wilson. How is your child doing?', sender: 'doctor', timestamp: '11:45 AM' },
-          { id: 2, content: 'Much better now, thank you. The fever is gone.', sender: 'patient', timestamp: '11:50 AM' },
-          { id: 3, content: 'That\'s great news! Your test results look good too.', sender: 'doctor', timestamp: '11:52 AM' },
-        ],
-      };
+      // Initialize with empty chat history if no saved chats
+      const initialChatHistory: Record<string, ChatMessage[]> = {};
       setChatMessages(initialChatHistory);
       localStorage.setItem('user_chat_history', JSON.stringify(initialChatHistory));
     }
   }, []);
 
-  // Get unique hospitals and specializations
-  const hospitals = [...new Set(doctors.map(doctor => doctor.hospital))];
-  const specializations = [...new Set(doctors.map(doctor => doctor.specialization))];
-  
   // Filter doctors based on selected hospital and specialization
   useEffect(() => {
     let filtered = [...doctors];
@@ -104,7 +123,7 @@ const UserChat = () => {
     if (selectedDoctor && !filtered.some(doctor => doctor.id === selectedDoctor.id)) {
       setSelectedDoctor(null);
     }
-  }, [selectedHospital, selectedSpecialization, doctors]);
+  }, [selectedHospital, selectedSpecialization, doctors, selectedDoctor]);
 
   const handleSendMessage = () => {
     if (!message.trim() || !selectedDoctor) return;
@@ -180,7 +199,7 @@ const UserChat = () => {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Hospitals</SelectItem>
-                      {hospitals.map(hospital => (
+                      {hospitals.map((hospital) => (
                         <SelectItem key={hospital} value={hospital}>{hospital}</SelectItem>
                       ))}
                     </SelectContent>
@@ -195,7 +214,7 @@ const UserChat = () => {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Specializations</SelectItem>
-                      {specializations.map(spec => (
+                      {specializations.map((spec) => (
                         <SelectItem key={spec} value={spec}>{spec}</SelectItem>
                       ))}
                     </SelectContent>
