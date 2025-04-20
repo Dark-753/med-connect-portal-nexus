@@ -5,8 +5,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar } from '@/components/ui/avatar';
-import { MessageSquare, Send } from 'lucide-react';
+import { MessageSquare, Send, Calendar } from 'lucide-react';
 import { useToast } from "@/components/ui/use-toast";
+import { Badge } from '@/components/ui/badge';
 
 interface ChatMessage {
   id: number;
@@ -20,6 +21,15 @@ interface Patient {
   name: string;
   lastMessage?: string;
   unreadCount?: number;
+}
+
+interface Appointment {
+  id: string;
+  patientId: string;
+  patientName: string;
+  date: string;
+  time: string;
+  status: string;
 }
 
 interface Doctor {
@@ -38,78 +48,134 @@ const DoctorChat = () => {
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [message, setMessage] = useState('');
   const [chatMessages, setChatMessages] = useState<Record<string, ChatMessage[]>>({});
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
   
-  // Mock patients data
-  const [patients, setPatients] = useState<Patient[]>([
-    { id: 'user-1', name: 'Jane Doe', lastMessage: 'How are you feeling today?', unreadCount: 2 },
-    { id: 'user-2', name: 'John Smith', lastMessage: 'Thank you doctor', unreadCount: 0 },
-    { id: 'user-3', name: 'Emily Johnson', lastMessage: 'When should I take the medicine?', unreadCount: 1 },
-  ]);
-
-  // Load doctors from localStorage
+  // Mock patients data with actual user IDs
+  const [patients, setPatients] = useState<Patient[]>([]);
+  
+  // Load doctor's appointments from localStorage
   useEffect(() => {
-    // Get all doctors from the mock users in localStorage
+    const savedAppointments = localStorage.getItem('doctor_appointments');
+    if (savedAppointments) {
+      try {
+        const parsedAppointments = JSON.parse(savedAppointments);
+        // Filter appointments for the current doctor
+        const doctorAppointments = parsedAppointments.filter(
+          (appointment: any) => appointment.doctorId === user?.id
+        );
+        setAppointments(doctorAppointments);
+      } catch (error) {
+        console.error('Error parsing appointments:', error);
+      }
+    }
+  }, [user]);
+
+  // Load chat messages from user_chat_history (from patient to doctor)
+  // This is where patient messages to doctors are stored
+  useEffect(() => {
+    // First, load any user-to-doctor chat messages
+    const savedChats = localStorage.getItem('user_chat_history');
+    let userToDoctorChats: Record<string, ChatMessage[]> = {};
+    
+    if (savedChats) {
+      try {
+        const parsedChats = JSON.parse(savedChats);
+        
+        // Since user_chat_history is keyed by doctorId, we need to find messages for this doctor
+        if (user && parsedChats[user.id]) {
+          userToDoctorChats[user.id] = parsedChats[user.id];
+        }
+      } catch (error) {
+        console.error('Error parsing user chat history:', error);
+      }
+    }
+    
+    // Then, load existing doctor chat history
+    const doctorChats = localStorage.getItem('doctor_chat_history');
+    if (doctorChats) {
+      try {
+        const parsedDoctorChats = JSON.parse(doctorChats);
+        setChatMessages({...userToDoctorChats, ...parsedDoctorChats});
+      } catch (error) {
+        console.error('Error parsing doctor chat history:', error);
+      }
+    } else {
+      setChatMessages(userToDoctorChats);
+    }
+  }, [user]);
+  
+  // Get all users from localStorage to identify patients
+  useEffect(() => {
     const mockUsersString = localStorage.getItem('healthhub_mock_users');
     if (mockUsersString) {
       try {
         const mockUsers = JSON.parse(mockUsersString);
-        // Find the current user if they are a doctor
-        const currentDoctor = mockUsers.find((u: any) => 
-          u.role === 'doctor' && 
-          u.approved && 
-          user && 
-          u.id === user.id
-        );
+        const patientUsers = mockUsers
+          .filter((mockUser: any) => mockUser.role === 'user')
+          .map((patientUser: any) => ({
+            id: patientUser.id,
+            name: patientUser.name,
+            lastMessage: '', // Will be populated later if there are messages
+            unreadCount: 0  // Will be populated later if there are unread messages
+          }));
         
-        if (currentDoctor) {
-          console.log('Current doctor found:', currentDoctor);
-          // If the doctor has hospital info, display it
-          if (currentDoctor.hospital) {
-            toast({
-              title: "Welcome Dr. " + currentDoctor.name,
-              description: `Currently working at ${currentDoctor.hospital}`,
-            });
-          }
-        } else {
-          console.log('Current user is not a doctor or not approved');
+        // Add patients from appointments if they're not already in the list
+        if (appointments.length > 0) {
+          appointments.forEach(appointment => {
+            if (!patientUsers.some((p: Patient) => p.id === appointment.patientId)) {
+              patientUsers.push({
+                id: appointment.patientId,
+                name: appointment.patientName,
+                lastMessage: `Appointment on ${appointment.date} at ${appointment.time}`,
+                unreadCount: 0
+              });
+            }
+          });
         }
+        
+        // Update patient list with message data
+        const userChatHistory = localStorage.getItem('user_chat_history');
+        if (userChatHistory && user) {
+          const parsedUserChats = JSON.parse(userChatHistory);
+          
+          // Find messages sent to this doctor
+          Object.keys(parsedUserChats).forEach(doctorId => {
+            if (doctorId === user.id) {
+              const messages = parsedUserChats[doctorId];
+              if (messages && messages.length > 0) {
+                // Group messages by sender (patient)
+                const messagesByPatient: Record<string, ChatMessage[]> = {};
+                
+                messages.forEach((msg: ChatMessage) => {
+                  const senderId = msg.sender === 'patient' ? msg.id.toString() : '';
+                  if (!messagesByPatient[senderId]) {
+                    messagesByPatient[senderId] = [];
+                  }
+                  messagesByPatient[senderId].push(msg);
+                });
+                
+                // Update patients with their last message and unread count
+                patientUsers.forEach((patient: Patient) => {
+                  const patientMessages = messagesByPatient[patient.id];
+                  if (patientMessages && patientMessages.length > 0) {
+                    const lastMsg = patientMessages[patientMessages.length - 1];
+                    patient.lastMessage = lastMsg.content;
+                    patient.unreadCount = patientMessages.filter(
+                      (m: ChatMessage) => m.sender === 'patient'
+                    ).length;
+                  }
+                });
+              }
+            }
+          });
+        }
+        
+        setPatients(patientUsers);
       } catch (error) {
         console.error('Error parsing mock users:', error);
       }
     }
-  }, [user, toast]);
-
-  // Load chat history from localStorage on component mount
-  useEffect(() => {
-    const savedChats = localStorage.getItem('doctor_chat_history');
-    if (savedChats) {
-      setChatMessages(JSON.parse(savedChats));
-    } else {
-      // Initialize with mock data if no saved chats
-      const initialChatHistory: Record<string, ChatMessage[]> = {
-        'user-1': [
-          { id: 1, content: 'Hello Dr. Smith', sender: 'patient', timestamp: '10:30 AM' },
-          { id: 2, content: 'Hello Jane, how can I help you today?', sender: 'doctor', timestamp: '10:32 AM' },
-          { id: 3, content: 'I\'ve been experiencing headaches for the past few days', sender: 'patient', timestamp: '10:33 AM' },
-          { id: 4, content: 'How severe are they on a scale of 1-10?', sender: 'doctor', timestamp: '10:35 AM' },
-          { id: 5, content: 'About a 7, and they\'re worse in the morning', sender: 'patient', timestamp: '10:36 AM' },
-          { id: 6, content: 'Have you been experiencing any other symptoms?', sender: 'doctor', timestamp: '10:38 AM' },
-        ],
-        'user-2': [
-          { id: 1, content: 'Dr. Smith, I got my test results', sender: 'patient', timestamp: '09:15 AM' },
-          { id: 2, content: 'Great, let me take a look at those for you', sender: 'doctor', timestamp: '09:20 AM' },
-          { id: 3, content: 'Thank you doctor', sender: 'patient', timestamp: '09:22 AM' },
-        ],
-        'user-3': [
-          { id: 1, content: 'Hello doctor, I have a question about my prescription', sender: 'patient', timestamp: '11:45 AM' },
-          { id: 2, content: 'Yes, what would you like to know?', sender: 'doctor', timestamp: '11:50 AM' },
-          { id: 3, content: 'When should I take the medicine? With food or without?', sender: 'patient', timestamp: '11:52 AM' },
-        ],
-      };
-      setChatMessages(initialChatHistory);
-      localStorage.setItem('doctor_chat_history', JSON.stringify(initialChatHistory));
-    }
-  }, []);
+  }, [user, appointments]);
 
   const handleSendMessage = () => {
     if (!message.trim() || !selectedPatient) return;
@@ -154,6 +220,11 @@ const DoctorChat = () => {
     setMessage('');
   };
 
+  // Get patient appointments
+  const getPatientAppointments = (patientId: string) => {
+    return appointments.filter(apt => apt.patientId === patientId);
+  };
+
   return (
     <div className="min-h-screen bg-health-green p-4">
       <div className="health-container py-6">
@@ -169,38 +240,44 @@ const DoctorChat = () => {
               <CardDescription>Select a patient to chat with</CardDescription>
             </CardHeader>
             <CardContent>
-              <ul className="divide-y">
-                {patients.map((patient) => (
-                  <li
-                    key={patient.id}
-                    className={`py-3 px-2 cursor-pointer hover:bg-gray-50 rounded-md ${
-                      selectedPatient?.id === patient.id ? 'bg-gray-100' : ''
-                    }`}
-                    onClick={() => setSelectedPatient(patient)}
-                  >
-                    <div className="flex justify-between items-center">
-                      <div className="flex items-center">
-                        <Avatar className="h-10 w-10 mr-3">
-                          <div className="flex h-full w-full items-center justify-center rounded-full bg-primary text-white">
-                            {patient.name.charAt(0)}
+              {patients.length > 0 ? (
+                <ul className="divide-y">
+                  {patients.map((patient) => (
+                    <li
+                      key={patient.id}
+                      className={`py-3 px-2 cursor-pointer hover:bg-gray-50 rounded-md ${
+                        selectedPatient?.id === patient.id ? 'bg-gray-100' : ''
+                      }`}
+                      onClick={() => setSelectedPatient(patient)}
+                    >
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center">
+                          <Avatar className="h-10 w-10 mr-3">
+                            <div className="flex h-full w-full items-center justify-center rounded-full bg-primary text-white">
+                              {patient.name.charAt(0)}
+                            </div>
+                          </Avatar>
+                          <div>
+                            <p className="font-medium">{patient.name}</p>
+                            <p className="text-sm text-gray-500 truncate">
+                              {patient.lastMessage || "No messages yet"}
+                            </p>
                           </div>
-                        </Avatar>
-                        <div>
-                          <p className="font-medium">{patient.name}</p>
-                          <p className="text-sm text-gray-500 truncate">
-                            {patient.lastMessage}
-                          </p>
                         </div>
+                        {patient.unreadCount ? (
+                          <span className="inline-flex items-center justify-center h-5 w-5 bg-primary text-white text-xs rounded-full">
+                            {patient.unreadCount}
+                          </span>
+                        ) : null}
                       </div>
-                      {patient.unreadCount ? (
-                        <span className="inline-flex items-center justify-center h-5 w-5 bg-primary text-white text-xs rounded-full">
-                          {patient.unreadCount}
-                        </span>
-                      ) : null}
-                    </div>
-                  </li>
-                ))}
-              </ul>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="py-4 text-center text-gray-500">
+                  No patients found
+                </div>
+              )}
             </CardContent>
           </Card>
           
@@ -209,30 +286,50 @@ const DoctorChat = () => {
               <CardTitle>
                 {selectedPatient ? `Chat with ${selectedPatient.name}` : 'Select a patient'}
               </CardTitle>
+              {selectedPatient && getPatientAppointments(selectedPatient.id).length > 0 && (
+                <div className="mt-2">
+                  <h3 className="text-sm font-medium">Appointments</h3>
+                  <div className="mt-1 space-y-1">
+                    {getPatientAppointments(selectedPatient.id).map(apt => (
+                      <div key={apt.id} className="flex items-center text-xs bg-blue-50 p-2 rounded-md">
+                        <Calendar className="h-3 w-3 mr-1 text-primary" />
+                        <span>{apt.date} at {apt.time}</span>
+                        <Badge className="ml-2 text-[10px] px-1" variant="outline">{apt.status}</Badge>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </CardHeader>
             <CardContent>
               {selectedPatient ? (
                 <>
                   <div className="border rounded-md p-4 h-96 mb-4 overflow-y-auto flex flex-col space-y-3">
-                    {chatMessages[selectedPatient.id]?.map((msg) => (
-                      <div
-                        key={msg.id}
-                        className={`max-w-[80%] p-3 rounded-lg ${
-                          msg.sender === 'doctor'
-                            ? 'bg-primary text-white self-end'
-                            : 'bg-gray-100 self-start'
-                        }`}
-                      >
-                        <div className="text-sm">{msg.content}</div>
+                    {chatMessages[selectedPatient.id]?.length > 0 ? (
+                      chatMessages[selectedPatient.id].map((msg) => (
                         <div
-                          className={`text-xs mt-1 ${
-                            msg.sender === 'doctor' ? 'text-gray-200' : 'text-gray-500'
+                          key={msg.id}
+                          className={`max-w-[80%] p-3 rounded-lg ${
+                            msg.sender === 'doctor'
+                              ? 'bg-primary text-white self-end'
+                              : 'bg-gray-100 self-start'
                           }`}
                         >
-                          {msg.timestamp}
+                          <div className="text-sm">{msg.content}</div>
+                          <div
+                            className={`text-xs mt-1 ${
+                              msg.sender === 'doctor' ? 'text-gray-200' : 'text-gray-500'
+                            }`}
+                          >
+                            {msg.timestamp}
+                          </div>
                         </div>
+                      ))
+                    ) : (
+                      <div className="flex flex-col items-center justify-center h-full text-gray-500">
+                        <p>No messages with {selectedPatient.name} yet</p>
                       </div>
-                    ))}
+                    )}
                   </div>
                   
                   <div className="flex items-center space-x-2">

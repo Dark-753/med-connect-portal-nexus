@@ -28,6 +28,17 @@ interface StoredUser {
   hospital?: string;
 }
 
+interface Appointment {
+  id: string;
+  patientId: string;
+  patientName: string;
+  doctorId: string;
+  doctorName: string;
+  date: string;
+  time: string;
+  status: string;
+}
+
 const AppointmentBooking = () => {
   const { user } = useAuth();
   const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null);
@@ -63,7 +74,7 @@ const AppointmentBooking = () => {
   }, []);
 
   const handleBookAppointment = () => {
-    if (!selectedDoctor || !selectedDate || !selectedTime) {
+    if (!selectedDoctor || !selectedDate || !selectedTime || !user) {
       toast({
         title: "Missing Information",
         description: "Please select a doctor, date, and time to book an appointment.",
@@ -72,8 +83,28 @@ const AppointmentBooking = () => {
       return;
     }
     
-    // In a real app, you would save the appointment to a database here
     const formattedDate = format(selectedDate, 'PPP');
+    
+    // Create appointment object
+    const newAppointment: Appointment = {
+      id: `appointment-${Date.now()}`,
+      patientId: user.id,
+      patientName: user.name,
+      doctorId: selectedDoctor.id,
+      doctorName: selectedDoctor.name,
+      date: formattedDate,
+      time: selectedTime,
+      status: 'Upcoming'
+    };
+    
+    // Save to localStorage
+    const existingAppointmentsStr = localStorage.getItem('doctor_appointments');
+    const existingAppointments = existingAppointmentsStr 
+      ? JSON.parse(existingAppointmentsStr) 
+      : [];
+    
+    existingAppointments.push(newAppointment);
+    localStorage.setItem('doctor_appointments', JSON.stringify(existingAppointments));
     
     toast({
       title: "Appointment Booked!",
