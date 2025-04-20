@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar } from '@/components/ui/avatar';
 import { MessageSquare, Send } from 'lucide-react';
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import { 
   Select, 
   SelectContent, 
@@ -20,6 +20,7 @@ interface ChatMessage {
   content: string;
   sender: 'doctor' | 'patient';
   timestamp: string;
+  patientId?: string;
 }
 
 interface Doctor {
@@ -126,7 +127,7 @@ const UserChat = () => {
   }, [selectedHospital, selectedSpecialization, doctors, selectedDoctor]);
 
   const handleSendMessage = () => {
-    if (!message.trim() || !selectedDoctor) return;
+    if (!message.trim() || !selectedDoctor || !user) return;
     
     // Get current date/time for timestamp
     const now = new Date();
@@ -140,7 +141,8 @@ const UserChat = () => {
       id: Date.now(),
       content: message,
       sender: 'patient',
-      timestamp: timestamp
+      timestamp: timestamp,
+      patientId: user.id
     };
     
     // Update chat history

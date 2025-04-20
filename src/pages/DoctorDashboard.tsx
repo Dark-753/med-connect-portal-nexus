@@ -5,21 +5,82 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Calendar, MessageSquare, FileCheck, User, Users } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 
 const DoctorDashboard = () => {
   const { user } = useAuth();
+  const [appointments, setAppointments] = useState([]);
+  const [messages, setMessages] = useState([]);
 
-  // Mock data
-  const appointments = [
-    { id: 1, patient: 'Jane Doe', date: '2025-04-20', time: '10:00 AM', status: 'Upcoming' },
-    { id: 2, patient: 'John Smith', date: '2025-04-20', time: '11:30 AM', status: 'Upcoming' },
-    { id: 3, patient: 'Emily Johnson', date: '2025-04-19', time: '3:00 PM', status: 'Completed' },
-  ];
-  
-  const messages = [
-    { id: 1, patient: 'Bob Williams', lastMessage: 'Thank you for the prescription, doctor!', time: '1 hour ago' },
-    { id: 2, patient: 'Sarah Taylor', lastMessage: 'When should I take this medication?', time: '3 hours ago' },
-  ];
+  // Load doctor's appointments and messages
+  useEffect(() => {
+    // Load appointments
+    const savedAppointments = localStorage.getItem('doctor_appointments');
+    if (savedAppointments && user) {
+      try {
+        const allAppointments = JSON.parse(savedAppointments);
+        // Filter appointments for this doctor
+        const doctorAppointments = allAppointments.filter(
+          appointment => appointment.doctorId === user.id
+        );
+        setAppointments(doctorAppointments);
+      } catch (error) {
+        console.error('Error loading appointments:', error);
+      }
+    }
+
+    // Load messages
+    const userChatHistory = localStorage.getItem('user_chat_history');
+    if (userChatHistory && user) {
+      try {
+        const chatHistory = JSON.parse(userChatHistory);
+        // Check if there are messages for this doctor
+        if (chatHistory[user.id]) {
+          // Get the last message from each patient
+          const patientMessages = [];
+          const patientIds = new Set();
+          
+          // Find all unique patients who sent messages
+          chatHistory[user.id].forEach(msg => {
+            if (msg.sender === 'patient') {
+              patientIds.add(msg.patientId || '');
+            }
+          });
+          
+          // Get user data to match patient IDs to names
+          const mockUsersString = localStorage.getItem('healthhub_mock_users');
+          let mockUsers = [];
+          if (mockUsersString) {
+            mockUsers = JSON.parse(mockUsersString);
+          }
+          
+          // For each patient, find their latest message
+          patientIds.forEach(patientId => {
+            if (!patientId) return;
+            
+            const patientMsgs = chatHistory[user.id].filter(
+              msg => msg.sender === 'patient' && msg.patientId === patientId
+            );
+            
+            if (patientMsgs.length > 0) {
+              const lastMsg = patientMsgs[patientMsgs.length - 1];
+              const patientUser = mockUsers.find(u => u.id === patientId);
+              patientMessages.push({
+                id: patientId,
+                patient: patientUser ? patientUser.name : 'Unknown Patient',
+                lastMessage: lastMsg.content,
+                time: lastMsg.timestamp
+              });
+            }
+          });
+          
+          setMessages(patientMessages);
+        }
+      } catch (error) {
+        console.error('Error loading messages:', error);
+      }
+    }
+  }, [user]);
 
   return (
     <div className="min-h-screen bg-health-green p-4">
@@ -67,16 +128,24 @@ const DoctorDashboard = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {appointments.filter(a => a.status === 'Upcoming').map(appointment => (
-                        <tr key={appointment.id} className="border-b hover:bg-gray-50">
-                          <td className="py-3">{appointment.patient}</td>
-                          <td className="py-3">{appointment.date}</td>
-                          <td className="py-3">{appointment.time}</td>
-                          <td className="py-3">
-                            <Badge className="bg-blue-500">{appointment.status}</Badge>
+                      {appointments.filter(a => a.status === 'Upcoming').length > 0 ? (
+                        appointments.filter(a => a.status === 'Upcoming').map(appointment => (
+                          <tr key={appointment.id} className="border-b hover:bg-gray-50">
+                            <td className="py-3">{appointment.patientName}</td>
+                            <td className="py-3">{appointment.date}</td>
+                            <td className="py-3">{appointment.time}</td>
+                            <td className="py-3">
+                              <Badge className="bg-blue-500">{appointment.status}</Badge>
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={4} className="py-4 text-center text-gray-500">
+                            No upcoming appointments
                           </td>
                         </tr>
-                      ))}
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -95,19 +164,25 @@ const DoctorDashboard = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {messages.map(message => (
-                <Link 
-                  key={message.id}
-                  to="/doctor/chat" 
-                  className="block p-3 border-b last:border-0 hover:bg-gray-50 cursor-pointer rounded-md mb-2"
-                >
-                  <div className="flex justify-between mb-1">
-                    <h4 className="font-medium">{message.patient}</h4>
-                    <span className="text-xs text-gray-500">{message.time}</span>
-                  </div>
-                  <p className="text-sm text-gray-600 truncate">{message.lastMessage}</p>
-                </Link>
-              ))}
+              {messages.length > 0 ? (
+                messages.map(message => (
+                  <Link 
+                    key={message.id}
+                    to="/doctor/chat" 
+                    className="block p-3 border-b last:border-0 hover:bg-gray-50 cursor-pointer rounded-md mb-2"
+                  >
+                    <div className="flex justify-between mb-1">
+                      <h4 className="font-medium">{message.patient}</h4>
+                      <span className="text-xs text-gray-500">{message.time}</span>
+                    </div>
+                    <p className="text-sm text-gray-600 truncate">{message.lastMessage}</p>
+                  </Link>
+                ))
+              ) : (
+                <div className="py-4 text-center text-gray-500">
+                  No recent messages
+                </div>
+              )}
               <div className="mt-4">
                 <Link to="/doctor/chat">
                   <Button variant="outline" className="w-full">
@@ -194,3 +269,4 @@ const DoctorDashboard = () => {
 };
 
 export default DoctorDashboard;
+
