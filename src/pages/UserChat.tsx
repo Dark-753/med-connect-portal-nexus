@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar } from '@/components/ui/avatar';
 import { MessageSquare, Send } from 'lucide-react';
+import { useToast } from "@/components/ui/use-toast";
 import { 
   Select, 
   SelectContent, 
@@ -32,11 +33,13 @@ interface Doctor {
 
 const UserChat = () => {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null);
   const [message, setMessage] = useState('');
   const [selectedHospital, setSelectedHospital] = useState<string>('all');
   const [selectedSpecialization, setSelectedSpecialization] = useState<string>('all');
   const [filteredDoctors, setFilteredDoctors] = useState<Doctor[]>([]);
+  const [chatMessages, setChatMessages] = useState<Record<string, ChatMessage[]>>({});
   
   // Mock doctors data
   const doctors: Doctor[] = [
@@ -47,6 +50,37 @@ const UserChat = () => {
     { id: 'doctor-5', name: 'Dr. Davis', specialization: 'Cardiology', hospital: "St. Mary's Hospital", lastMessage: '', unreadCount: 0 },
     { id: 'doctor-6', name: 'Dr. Miller', specialization: 'General Medicine', hospital: 'Central Hospital', lastMessage: '', unreadCount: 0 },
   ];
+
+  // Load chat history from localStorage on component mount
+  useEffect(() => {
+    const savedChats = localStorage.getItem('user_chat_history');
+    if (savedChats) {
+      setChatMessages(JSON.parse(savedChats));
+    } else {
+      // Initialize with mock data if no saved chats
+      const initialChatHistory: Record<string, ChatMessage[]> = {
+        'doctor-1': [
+          { id: 1, content: 'Hello, how can I help you today?', sender: 'doctor', timestamp: '10:30 AM' },
+          { id: 2, content: 'Hi Dr. Smith, I\'ve been having headaches lately', sender: 'patient', timestamp: '10:32 AM' },
+          { id: 3, content: 'How severe are they on a scale of 1-10?', sender: 'doctor', timestamp: '10:33 AM' },
+          { id: 4, content: 'About a 7, and they\'re worse in the morning', sender: 'patient', timestamp: '10:35 AM' },
+          { id: 5, content: 'Have you been experiencing any other symptoms?', sender: 'doctor', timestamp: '10:36 AM' },
+        ],
+        'doctor-2': [
+          { id: 1, content: 'Hello, I\'m Dr. Johnson. I\'ve reviewed your heart tests.', sender: 'doctor', timestamp: '09:15 AM' },
+          { id: 2, content: 'Thanks doctor, what did you find?', sender: 'patient', timestamp: '09:20 AM' },
+          { id: 3, content: 'Everything looks normal. Remember to take your medication as prescribed.', sender: 'doctor', timestamp: '09:22 AM' },
+        ],
+        'doctor-3': [
+          { id: 1, content: 'Hello, I\'m Dr. Wilson. How is your child doing?', sender: 'doctor', timestamp: '11:45 AM' },
+          { id: 2, content: 'Much better now, thank you. The fever is gone.', sender: 'patient', timestamp: '11:50 AM' },
+          { id: 3, content: 'That\'s great news! Your test results look good too.', sender: 'doctor', timestamp: '11:52 AM' },
+        ],
+      };
+      setChatMessages(initialChatHistory);
+      localStorage.setItem('user_chat_history', JSON.stringify(initialChatHistory));
+    }
+  }, []);
 
   // Get unique hospitals and specializations
   const hospitals = [...new Set(doctors.map(doctor => doctor.hospital))];
@@ -70,38 +104,46 @@ const UserChat = () => {
     if (selectedDoctor && !filtered.some(doctor => doctor.id === selectedDoctor.id)) {
       setSelectedDoctor(null);
     }
-  }, [selectedHospital, selectedSpecialization, selectedDoctor]);
-
-  // Mock chat history for each doctor
-  const chatHistory: Record<string, ChatMessage[]> = {
-    'doctor-1': [
-      { id: 1, content: 'Hello, how can I help you today?', sender: 'doctor', timestamp: '10:30 AM' },
-      { id: 2, content: 'Hi Dr. Smith, I\'ve been having headaches lately', sender: 'patient', timestamp: '10:32 AM' },
-      { id: 3, content: 'How severe are they on a scale of 1-10?', sender: 'doctor', timestamp: '10:33 AM' },
-      { id: 4, content: 'About a 7, and they\'re worse in the morning', sender: 'patient', timestamp: '10:35 AM' },
-      { id: 5, content: 'Have you been experiencing any other symptoms?', sender: 'doctor', timestamp: '10:36 AM' },
-    ],
-    'doctor-2': [
-      { id: 1, content: 'Hello, I\'m Dr. Johnson. I\'ve reviewed your heart tests.', sender: 'doctor', timestamp: '09:15 AM' },
-      { id: 2, content: 'Thanks doctor, what did you find?', sender: 'patient', timestamp: '09:20 AM' },
-      { id: 3, content: 'Everything looks normal. Remember to take your medication as prescribed.', sender: 'doctor', timestamp: '09:22 AM' },
-    ],
-    'doctor-3': [
-      { id: 1, content: 'Hello, I\'m Dr. Wilson. How is your child doing?', sender: 'doctor', timestamp: '11:45 AM' },
-      { id: 2, content: 'Much better now, thank you. The fever is gone.', sender: 'patient', timestamp: '11:50 AM' },
-      { id: 3, content: 'That\'s great news! Your test results look good too.', sender: 'doctor', timestamp: '11:52 AM' },
-    ],
-    // Add empty chat history for new doctors
-    'doctor-4': [],
-    'doctor-5': [],
-    'doctor-6': [],
-  };
+  }, [selectedHospital, selectedSpecialization, doctors]);
 
   const handleSendMessage = () => {
     if (!message.trim() || !selectedDoctor) return;
     
-    // In a real app, you would save the message to a database here
+    // Get current date/time for timestamp
+    const now = new Date();
+    const hours = now.getHours() % 12 || 12;
+    const minutes = now.getMinutes().toString().padStart(2, '0');
+    const ampm = now.getHours() >= 12 ? 'PM' : 'AM';
+    const timestamp = `${hours}:${minutes} ${ampm}`;
+    
+    // Create new message
+    const newMessage: ChatMessage = {
+      id: Date.now(),
+      content: message,
+      sender: 'patient',
+      timestamp: timestamp
+    };
+    
+    // Update chat history
+    const updatedChatHistory = { ...chatMessages };
+    
+    if (updatedChatHistory[selectedDoctor.id]) {
+      updatedChatHistory[selectedDoctor.id] = [...updatedChatHistory[selectedDoctor.id], newMessage];
+    } else {
+      updatedChatHistory[selectedDoctor.id] = [newMessage];
+    }
+    
+    // Update state and localStorage
+    setChatMessages(updatedChatHistory);
+    localStorage.setItem('user_chat_history', JSON.stringify(updatedChatHistory));
+    
+    // Log for debugging
     console.log(`Message to ${selectedDoctor.name}: ${message}`);
+    
+    toast({
+      title: "Message sent",
+      description: `Your message has been sent to ${selectedDoctor.name}`,
+    });
     
     // Clear the input
     setMessage('');
@@ -222,8 +264,8 @@ const UserChat = () => {
               {selectedDoctor ? (
                 <>
                   <div className="border rounded-md p-4 h-96 mb-4 overflow-y-auto flex flex-col space-y-3">
-                    {chatHistory[selectedDoctor.id]?.length > 0 ? (
-                      chatHistory[selectedDoctor.id]?.map((msg) => (
+                    {chatMessages[selectedDoctor.id]?.length > 0 ? (
+                      chatMessages[selectedDoctor.id]?.map((msg) => (
                         <div
                           key={msg.id}
                           className={`max-w-[80%] p-3 rounded-lg ${
