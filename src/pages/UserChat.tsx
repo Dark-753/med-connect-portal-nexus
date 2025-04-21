@@ -55,6 +55,14 @@ const UserChat = () => {
   const [hospitals, setHospitals] = useState<string[]>([]);
   const [specializations, setSpecializations] = useState<string[]>([]);
   
+  // Debug user info
+  useEffect(() => {
+    if (user) {
+      console.log("User Chat - User ID:", user.id);
+      console.log("User Chat - User Name:", user.name);
+    }
+  }, [user]);
+  
   // Load doctors from localStorage
   useEffect(() => {
     // Get all doctors from localStorage
@@ -93,18 +101,52 @@ const UserChat = () => {
     }
   }, []);
 
-  // Load chat history from localStorage on component mount
+  // Load chat histories
   useEffect(() => {
-    const savedChats = localStorage.getItem('user_chat_history');
-    if (savedChats) {
-      setChatMessages(JSON.parse(savedChats));
-    } else {
-      // Initialize with empty chat history if no saved chats
-      const initialChatHistory: Record<string, ChatMessage[]> = {};
-      setChatMessages(initialChatHistory);
-      localStorage.setItem('user_chat_history', JSON.stringify(initialChatHistory));
+    if (!user) return;
+    
+    // First, load messages sent by the patient
+    let combinedMessages: Record<string, ChatMessage[]> = {};
+    
+    const savedPatientChats = localStorage.getItem('user_chat_history');
+    if (savedPatientChats) {
+      try {
+        const parsedChats = JSON.parse(savedPatientChats);
+        
+        // For each doctor the patient has messaged
+        Object.keys(parsedChats || {}).forEach(doctorId => {
+          combinedMessages[doctorId] = parsedChats[doctorId] || [];
+        });
+      } catch (error) {
+        console.error('Error parsing user chat history:', error);
+      }
     }
-  }, []);
+    
+    // Then, load messages sent by doctors to this patient
+    const doctorChats = localStorage.getItem('doctor_chat_history');
+    if (doctorChats) {
+      try {
+        const parsedDoctorChats = JSON.parse(doctorChats);
+        
+        // Check if any doctor has sent messages to this patient
+        if (parsedDoctorChats && parsedDoctorChats[user.id]) {
+          if (!combinedMessages[user.id]) {
+            combinedMessages[user.id] = [];
+          }
+          
+          // Add messages sent by doctors to this patient
+          combinedMessages[user.id] = [
+            ...combinedMessages[user.id],
+            ...(parsedDoctorChats[user.id] || [])
+          ];
+        }
+      } catch (error) {
+        console.error('Error parsing doctor chat history:', error);
+      }
+    }
+    
+    setChatMessages(combinedMessages);
+  }, [user]);
 
   // Filter doctors based on selected hospital and specialization
   useEffect(() => {
@@ -142,7 +184,7 @@ const UserChat = () => {
       content: message,
       sender: 'patient',
       timestamp: timestamp,
-      patientId: user.id
+      patientId: user.id // Always add patientId to messages
     };
     
     // Update chat history
@@ -158,8 +200,7 @@ const UserChat = () => {
     setChatMessages(updatedChatHistory);
     localStorage.setItem('user_chat_history', JSON.stringify(updatedChatHistory));
     
-    // Log for debugging
-    console.log(`Message to ${selectedDoctor.name}: ${message}`);
+    console.log(`Message sent to doctor ${selectedDoctor.id}:`, newMessage);
     
     toast({
       title: "Message sent",

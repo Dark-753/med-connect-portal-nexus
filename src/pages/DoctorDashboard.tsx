@@ -6,11 +6,21 @@ import { Button } from '@/components/ui/button';
 import { Calendar, MessageSquare, FileCheck, User, Users } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
+import { useToast } from "@/hooks/use-toast";
 
 const DoctorDashboard = () => {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [appointments, setAppointments] = useState([]);
   const [messages, setMessages] = useState([]);
+  
+  // Debug doctors's ID
+  useEffect(() => {
+    if (user) {
+      console.log("Current doctor ID:", user.id);
+      console.log("Doctor name:", user.name);
+    }
+  }, [user]);
 
   // Load doctor's appointments and messages
   useEffect(() => {
@@ -23,64 +33,117 @@ const DoctorDashboard = () => {
         const doctorAppointments = allAppointments.filter(
           appointment => appointment.doctorId === user.id
         );
+        console.log('Doctor appointments loaded:', doctorAppointments);
         setAppointments(doctorAppointments);
       } catch (error) {
         console.error('Error loading appointments:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load appointments",
+          variant: "destructive",
+        });
       }
+    } else {
+      console.log('No appointments found or user not logged in');
     }
 
-    // Load messages
-    const userChatHistory = localStorage.getItem('user_chat_history');
-    if (userChatHistory && user) {
+    // Load messages from both patient-to-doctor and doctor-to-patient sources
+    if (user) {
       try {
-        const chatHistory = JSON.parse(userChatHistory);
-        // Check if there are messages for this doctor
-        if (chatHistory[user.id]) {
-          // Get the last message from each patient
-          const patientMessages = [];
-          const patientIds = new Set();
+        // Get messages sent by patients to this doctor from user_chat_history
+        const userChatHistory = localStorage.getItem('user_chat_history');
+        const patientMessages = [];
+        
+        if (userChatHistory) {
+          const parsedUserChats = JSON.parse(userChatHistory);
           
-          // Find all unique patients who sent messages
-          chatHistory[user.id].forEach(msg => {
-            if (msg.sender === 'patient') {
-              patientIds.add(msg.patientId || '');
+          // Check for messages sent to this doctor
+          if (parsedUserChats && parsedUserChats[user.id]) {
+            console.log("Found patient messages for doctor:", parsedUserChats[user.id]);
+            
+            // Get all user data to match patient IDs to names
+            const mockUsersString = localStorage.getItem('healthhub_mock_users');
+            let mockUsers = [];
+            if (mockUsersString) {
+              mockUsers = JSON.parse(mockUsersString);
             }
-          });
-          
-          // Get user data to match patient IDs to names
-          const mockUsersString = localStorage.getItem('healthhub_mock_users');
-          let mockUsers = [];
-          if (mockUsersString) {
-            mockUsers = JSON.parse(mockUsersString);
+            
+            // Find all unique patients who sent messages
+            const patientIds = new Set();
+            parsedUserChats[user.id].forEach(msg => {
+              if (msg.sender === 'patient' && msg.patientId) {
+                patientIds.add(msg.patientId);
+              }
+            });
+            
+            console.log("Patient IDs who sent messages:", Array.from(patientIds));
+            
+            // For each patient, find their latest message
+            patientIds.forEach(patientId => {
+              const patientMsgs = parsedUserChats[user.id].filter(
+                msg => msg.sender === 'patient' && msg.patientId === patientId
+              );
+              
+              if (patientMsgs.length > 0) {
+                const lastMsg = patientMsgs[patientMsgs.length - 1];
+                const patientUser = mockUsers.find(u => u.id === patientId);
+                
+                patientMessages.push({
+                  id: patientId,
+                  patient: patientUser ? patientUser.name : 'Unknown Patient',
+                  lastMessage: lastMsg.content,
+                  time: lastMsg.timestamp
+                });
+              }
+            });
           }
-          
-          // For each patient, find their latest message
-          patientIds.forEach(patientId => {
-            if (!patientId) return;
-            
-            const patientMsgs = chatHistory[user.id].filter(
-              msg => msg.sender === 'patient' && msg.patientId === patientId
-            );
-            
-            if (patientMsgs.length > 0) {
-              const lastMsg = patientMsgs[patientMsgs.length - 1];
-              const patientUser = mockUsers.find(u => u.id === patientId);
-              patientMessages.push({
-                id: patientId,
-                patient: patientUser ? patientUser.name : 'Unknown Patient',
-                lastMessage: lastMsg.content,
-                time: lastMsg.timestamp
-              });
-            }
-          });
-          
-          setMessages(patientMessages);
         }
+        
+        // Get messages sent by this doctor to patients from doctor_chat_history
+        const doctorChatHistory = localStorage.getItem('doctor_chat_history');
+        if (doctorChatHistory) {
+          const parsedDoctorChats = JSON.parse(doctorChatHistory);
+          
+          // For each patient the doctor has messaged
+          if (parsedDoctorChats) {
+            Object.keys(parsedDoctorChats).forEach(patientId => {
+              // Check if we already have a message for this patient
+              const existingPatientMsg = patientMessages.find(msg => msg.id === patientId);
+              
+              if (!existingPatientMsg && parsedDoctorChats[patientId].length > 0) {
+                // If we don't have a message from this patient yet, use the doctor's latest message
+                const mockUsersString = localStorage.getItem('healthhub_mock_users');
+                let mockUsers = [];
+                if (mockUsersString) {
+                  mockUsers = JSON.parse(mockUsersString);
+                }
+                
+                const patientUser = mockUsers.find(u => u.id === patientId);
+                const lastMsg = parsedDoctorChats[patientId][parsedDoctorChats[patientId].length - 1];
+                
+                patientMessages.push({
+                  id: patientId,
+                  patient: patientUser ? patientUser.name : 'Unknown Patient',
+                  lastMessage: `You: ${lastMsg.content}`,
+                  time: lastMsg.timestamp
+                });
+              }
+            });
+          }
+        }
+        
+        console.log('Combined patient messages:', patientMessages);
+        setMessages(patientMessages);
       } catch (error) {
         console.error('Error loading messages:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load messages",
+          variant: "destructive",
+        });
       }
     }
-  }, [user]);
+  }, [user, toast]);
 
   return (
     <div className="min-h-screen bg-health-green p-4">
@@ -269,4 +332,3 @@ const DoctorDashboard = () => {
 };
 
 export default DoctorDashboard;
-
