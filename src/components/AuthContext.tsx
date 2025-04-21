@@ -29,6 +29,7 @@ interface AuthContextType {
   approveDoctorRegistration: (doctorId: string) => void;
   getAllDoctors: () => User[];
   updateUserEmergencyContact: (userId: string, phone: string, email: string) => void;
+  removeDoctor: (doctorId: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -373,6 +374,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const approveDoctorRegistration = (doctorId: string) => {
+    console.log(`Approving doctor with ID: ${doctorId}`);
+    
     // Update the mock data
     const updatedUsers = mockUsers.map(user => {
       if (user.id === doctorId) {
@@ -383,15 +386,39 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     
     setMockUsers(updatedUsers);
     
+    // Update localStorage directly to ensure changes persist
+    localStorage.setItem('healthhub_mock_users', JSON.stringify(updatedUsers));
+    
     toast({
       title: "Doctor Approved",
       description: "The doctor can now access the system",
     });
   };
   
+  const removeDoctor = (doctorId: string) => {
+    console.log(`Removing doctor with ID: ${doctorId}`);
+    
+    // Remove the doctor from mock data
+    const updatedUsers = mockUsers.filter(user => user.id !== doctorId);
+    
+    setMockUsers(updatedUsers);
+    
+    // Update localStorage directly to ensure changes persist
+    localStorage.setItem('healthhub_mock_users', JSON.stringify(updatedUsers));
+    
+    toast({
+      title: "Doctor Removed",
+      description: "The doctor has been removed from the system",
+    });
+  };
+  
   const getAllDoctors = () => {
-    // Return doctors from the mock data in localStorage
-    return mockUsers.filter(user => user.role === 'doctor');
+    // Get the latest mock users from localStorage
+    const storedUsers = localStorage.getItem('healthhub_mock_users');
+    const latestUsers = storedUsers ? JSON.parse(storedUsers) : mockUsers;
+    
+    // Return doctors from the mock data
+    return latestUsers.filter(user => user.role === 'doctor');
   };
 
   const updateUserEmergencyContact = (userId: string, phone: string, email: string) => {
@@ -438,7 +465,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       register,
       approveDoctorRegistration,
       getAllDoctors,
-      updateUserEmergencyContact
+      updateUserEmergencyContact,
+      removeDoctor
     }}>
       {children}
     </AuthContext.Provider>

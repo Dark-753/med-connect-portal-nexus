@@ -15,6 +15,7 @@ const Register = () => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [role, setRole] = useState<'user' | 'doctor'>('user');
+  const [specialization, setSpecialization] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
@@ -38,7 +39,7 @@ const Register = () => {
     setIsSubmitting(true);
     
     try {
-      await register(email, password, name, role);
+      await register(email, password, name, role, role === 'doctor' ? specialization : undefined);
       
       if (role === 'doctor') {
         navigate('/registration-pending');
@@ -120,6 +121,20 @@ const Register = () => {
                   </div>
                 </RadioGroup>
               </div>
+              
+              {role === 'doctor' && (
+                <div className="grid gap-2">
+                  <Label htmlFor="specialization">Specialization</Label>
+                  <Input
+                    id="specialization"
+                    type="text"
+                    placeholder="e.g. Cardiology"
+                    value={specialization}
+                    onChange={(e) => setSpecialization(e.target.value)}
+                    required
+                  />
+                </div>
+              )}
               
               {error && (
                 <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4">

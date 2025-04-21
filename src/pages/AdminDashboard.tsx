@@ -28,7 +28,7 @@ import {
 import { toast } from "@/components/ui/use-toast";
 
 const AdminDashboard = () => {
-  const { user, approveDoctorRegistration, getAllDoctors } = useAuth();
+  const { user, approveDoctorRegistration, getAllDoctors, removeDoctor } = useAuth();
   
   // Fetch all doctors from auth context
   const [pendingDoctors, setPendingDoctors] = useState<any[]>([]);
@@ -51,39 +51,56 @@ const AdminDashboard = () => {
     emergencyEmail: ''
   });
 
-  useEffect(() => {
-    // Get all doctors and separate them into pending and approved
+  // Function to refresh doctor lists from local storage
+  const refreshDoctorLists = () => {
+    console.log("Refreshing doctor lists");
+    // Get fresh list of all doctors
     const allDoctors = getAllDoctors();
+    console.log("All doctors:", allDoctors);
     
-    const pending = allDoctors.filter(doctor => !doctor.approved);
-    const approved = allDoctors.filter(doctor => doctor.approved);
+    // Separate them into pending and approved
+    const pending = allDoctors.filter(doctor => doctor.approved !== true);
+    const approved = allDoctors.filter(doctor => doctor.approved === true);
+    
+    console.log("Pending doctors:", pending);
+    console.log("Approved doctors:", approved);
     
     setPendingDoctors(pending);
     setApprovedDoctors(approved);
+  };
+
+  useEffect(() => {
+    // Initial load of doctors
+    refreshDoctorLists();
+    
+    // Set up interval to refresh every few seconds (for demo purposes)
+    const interval = setInterval(() => {
+      refreshDoctorLists();
+    }, 5000);
+    
+    return () => clearInterval(interval);
   }, [getAllDoctors]);
 
   const handleApprove = (doctorId: string) => {
+    console.log(`Approving doctor: ${doctorId}`);
     approveDoctorRegistration(doctorId);
     
-    // Move doctor from pending to approved
-    const doctorToMove = pendingDoctors.find(doctor => doctor.id === doctorId);
-    if (doctorToMove) {
-      const updatedApproved = [...approvedDoctors, {
-        ...doctorToMove,
-        approved: true
-      }];
-      setApprovedDoctors(updatedApproved);
-      setPendingDoctors(pendingDoctors.filter(doctor => doctor.id !== doctorId));
-      
-      toast({
-        title: "Doctor Approved",
-        description: `${doctorToMove.name} has been approved and can now access the system`,
-      });
-    }
+    // Refresh the lists after approval
+    setTimeout(refreshDoctorLists, 500);
+    
+    toast({
+      title: "Doctor Approved",
+      description: "The doctor has been approved and can now access the system",
+    });
   };
 
   const handleRemoveDoctor = (doctorId: string) => {
-    setApprovedDoctors(approvedDoctors.filter(doctor => doctor.id !== doctorId));
+    console.log(`Removing doctor: ${doctorId}`);
+    removeDoctor(doctorId);
+    
+    // Refresh the lists after removal
+    setTimeout(refreshDoctorLists, 500);
+    
     toast({
       title: "Doctor Removed",
       description: "The doctor has been removed from the system",
@@ -146,6 +163,15 @@ const AdminDashboard = () => {
           <p className="text-gray-600">
             As the system administrator, you can manage doctors, approve registrations, and oversee all users.
           </p>
+          
+          <div className="mt-4">
+            <Button 
+              onClick={refreshDoctorLists}
+              className="bg-blue-500 hover:bg-blue-600"
+            >
+              Refresh Doctor Lists
+            </Button>
+          </div>
         </div>
         
         <div className="mb-8">
@@ -173,7 +199,7 @@ const AdminDashboard = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {pendingDoctors.map(doctor => (
+                    {pendingDoctors.map((doctor) => (
                       <TableRow key={doctor.id}>
                         <TableCell>{doctor.name}</TableCell>
                         <TableCell>{doctor.email}</TableCell>
@@ -219,7 +245,7 @@ const AdminDashboard = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {approvedDoctors.map(doctor => (
+                    {approvedDoctors.map((doctor) => (
                       <TableRow key={doctor.id}>
                         <TableCell>{doctor.name}</TableCell>
                         <TableCell>{doctor.email}</TableCell>
