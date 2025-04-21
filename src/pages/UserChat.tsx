@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/components/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -54,6 +53,9 @@ const UserChat = () => {
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [hospitals, setHospitals] = useState<string[]>([]);
   const [specializations, setSpecializations] = useState<string[]>([]);
+  const [botQuestion, setBotQuestion] = useState('');
+  const [botAnswer, setBotAnswer] = useState('');
+  const [isBotLoading, setIsBotLoading] = useState(false);
   
   // Debug user info
   useEffect(() => {
@@ -219,10 +221,86 @@ const UserChat = () => {
     setSelectedSpecialization(value);
   };
 
+  // --- Add AI assistant (HealthBot) handler
+  async function handleAskBot() {
+    if (!botQuestion.trim()) return;
+    setIsBotLoading(true);
+    setBotAnswer('');
+
+    try {
+      const response = await fetch('https://api.perplexity.ai/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer pk-lovable-demo`, // Replace with your Perplexity API key for production!
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'llama-3.1-sonar-small-128k-online',
+          messages: [
+            { role: 'system', content: 'You are an empathetic healthcare assistant. Respond only with clear, concise, medically accurate advice and answers regarding diseases, symptoms, and health conditions.' },
+            { role: 'user', content: botQuestion }
+          ],
+          temperature: 0.2,
+          max_tokens: 300
+        })
+      });
+      if (!response.ok) {
+        setBotAnswer('Sorry, I was unable to answer your question at this time.');
+        setIsBotLoading(false);
+        return;
+      }
+      const data = await response.json();
+      setBotAnswer(data.choices?.[0]?.message?.content || 'Sorry, I could not find an answer.');
+    } catch (err) {
+      setBotAnswer('Sorry, there was an error contacting HealthBot.');
+    }
+    setIsBotLoading(false);
+  }
+
   return (
     <div className="min-h-screen bg-health-green p-4">
       <div className="health-container py-6">
         <h1 className="text-3xl font-bold mb-6 text-health-dark">Chat with Doctors</h1>
+
+        {/* HealthBot Chat Section */}
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <span role="img" aria-label="bot">🤖</span>
+              HealthBot - Disease Q&A
+            </CardTitle>
+            <CardDescription>
+              Ask any question about diseases, symptoms, or health advice.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col gap-3">
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Ask HealthBot about a disease, symptom, or condition..."
+                  value={botQuestion}
+                  onChange={e => setBotQuestion(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleAskBot()}
+                  className="flex-1"
+                  disabled={isBotLoading}
+                />
+                <Button 
+                  type="button" 
+                  onClick={handleAskBot} 
+                  disabled={isBotLoading || !botQuestion.trim()}
+                >
+                  {isBotLoading ? "Asking..." : "Ask"}
+                </Button>
+              </div>
+              {botAnswer && (
+                <div className="p-3 rounded bg-gray-100 text-gray-700 mt-2">
+                  {botAnswer}
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <Card className="md:col-span-1">
