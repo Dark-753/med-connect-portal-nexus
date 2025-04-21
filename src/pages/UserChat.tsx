@@ -1,10 +1,11 @@
+
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/components/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar } from '@/components/ui/avatar';
-import { MessageSquare, Send } from 'lucide-react';
+import { MessageSquare, Send, Bot } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { 
   Select, 
@@ -13,6 +14,14 @@ import {
   SelectTrigger, 
   SelectValue 
 } from '@/components/ui/select';
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 
 interface ChatMessage {
   id: number;
@@ -56,6 +65,7 @@ const UserChat = () => {
   const [botQuestion, setBotQuestion] = useState('');
   const [botAnswer, setBotAnswer] = useState('');
   const [isBotLoading, setIsBotLoading] = useState(false);
+  const [botHistory, setBotHistory] = useState<{question: string, answer: string}[]>([]);
   
   // Debug user info
   useEffect(() => {
@@ -250,7 +260,11 @@ const UserChat = () => {
         return;
       }
       const data = await response.json();
-      setBotAnswer(data.choices?.[0]?.message?.content || 'Sorry, I could not find an answer.');
+      const answer = data.choices?.[0]?.message?.content || 'Sorry, I could not find an answer.';
+      
+      // Save to history
+      setBotHistory(prev => [...prev, {question: botQuestion, answer}]);
+      setBotAnswer(answer);
     } catch (err) {
       setBotAnswer('Sorry, there was an error contacting HealthBot.');
     }
@@ -262,11 +276,89 @@ const UserChat = () => {
       <div className="health-container py-6">
         <h1 className="text-3xl font-bold mb-6 text-health-dark">Chat with Doctors</h1>
 
-        {/* HealthBot Chat Section */}
+        {/* HealthBot Chat Button - Fixed Position */}
+        <div className="fixed bottom-6 right-6 z-50">
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button 
+                className="h-14 w-14 rounded-full bg-secondary hover:bg-secondary/90 shadow-lg"
+                aria-label="Open HealthBot"
+              >
+                <Bot className="h-6 w-6" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent className="sm:max-w-md w-[90vw]">
+              <SheetHeader>
+                <SheetTitle className="flex items-center gap-2">
+                  <Bot className="h-5 w-5" />
+                  HealthBot Assistant
+                </SheetTitle>
+                <SheetDescription>
+                  Ask me anything about diseases, symptoms, or health advice.
+                </SheetDescription>
+              </SheetHeader>
+              <div className="mt-4 flex flex-col h-[80vh]">
+                <div className="flex-1 overflow-y-auto p-4 space-y-4 mb-4 bg-gray-50 rounded-md">
+                  {botHistory.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-full text-gray-500">
+                      <Bot className="h-16 w-16 mb-4 opacity-20" />
+                      <p>Ask me a health-related question to get started</p>
+                    </div>
+                  ) : (
+                    botHistory.map((item, idx) => (
+                      <div key={idx} className="space-y-2">
+                        <div className="flex gap-2 items-start">
+                          <div className="bg-primary text-white p-2 rounded-full h-7 w-7 flex items-center justify-center text-xs">
+                            You
+                          </div>
+                          <div className="bg-gray-100 rounded-lg p-3 max-w-[85%]">
+                            {item.question}
+                          </div>
+                        </div>
+                        <div className="flex gap-2 items-start">
+                          <div className="bg-secondary text-white p-2 rounded-full h-7 w-7 flex items-center justify-center text-xs">
+                            <Bot className="h-4 w-4" />
+                          </div>
+                          <div className="bg-secondary/10 rounded-lg p-3 max-w-[85%]">
+                            {item.answer}
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                  {isBotLoading && (
+                    <div className="flex justify-center">
+                      <div className="animate-pulse text-gray-500">HealthBot is thinking...</div>
+                    </div>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Ask about a health condition..."
+                    value={botQuestion}
+                    onChange={e => setBotQuestion(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleAskBot()}
+                    className="flex-1"
+                    disabled={isBotLoading}
+                  />
+                  <Button 
+                    onClick={handleAskBot} 
+                    disabled={isBotLoading || !botQuestion.trim()}
+                    className="bg-secondary hover:bg-secondary/90"
+                  >
+                    <Send className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </SheetContent>
+          </Sheet>
+        </div>
+
+        {/* Original HealthBot Card - Can be kept for users who prefer the inline version */}
         <Card className="mb-8">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <span role="img" aria-label="bot">🤖</span>
+              <Bot className="h-5 w-5 text-primary" />
               HealthBot - Disease Q&A
             </CardTitle>
             <CardDescription>
@@ -300,7 +392,6 @@ const UserChat = () => {
             </div>
           </CardContent>
         </Card>
-
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <Card className="md:col-span-1">

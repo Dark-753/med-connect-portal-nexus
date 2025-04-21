@@ -2,9 +2,63 @@
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/components/AuthContext';
+import { Bot } from 'lucide-react';
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import { useState } from 'react';
+import { Input } from '@/components/ui/input';
 
 const Index = () => {
   const { isAuthenticated, user } = useAuth();
+  const [botQuestion, setBotQuestion] = useState('');
+  const [botAnswer, setBotAnswer] = useState('');
+  const [isBotLoading, setIsBotLoading] = useState(false);
+  const [botHistory, setBotHistory] = useState<{question: string, answer: string}[]>([]);
+
+  async function handleAskBot() {
+    if (!botQuestion.trim()) return;
+    setIsBotLoading(true);
+    setBotAnswer('');
+
+    try {
+      const response = await fetch('https://api.perplexity.ai/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer pk-lovable-demo`, // Replace with your Perplexity API key for production!
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'llama-3.1-sonar-small-128k-online',
+          messages: [
+            { role: 'system', content: 'You are an empathetic healthcare assistant. Respond only with clear, concise, medically accurate advice and answers regarding diseases, symptoms, and health conditions.' },
+            { role: 'user', content: botQuestion }
+          ],
+          temperature: 0.2,
+          max_tokens: 300
+        })
+      });
+      if (!response.ok) {
+        setBotAnswer('Sorry, I was unable to answer your question at this time.');
+        setIsBotLoading(false);
+        return;
+      }
+      const data = await response.json();
+      const answer = data.choices?.[0]?.message?.content || 'Sorry, I could not find an answer.';
+      
+      // Save to history
+      setBotHistory(prev => [...prev, {question: botQuestion, answer}]);
+      setBotAnswer(answer);
+    } catch (err) {
+      setBotAnswer('Sorry, there was an error contacting HealthBot.');
+    }
+    setIsBotLoading(false);
+  }
 
   return (
     <div className="min-h-screen bg-health-green">
@@ -37,6 +91,81 @@ const Index = () => {
                     Register
                   </Button>
                 </Link>
+                <Sheet>
+                  <SheetTrigger asChild>
+                    <Button 
+                      className="bg-secondary hover:bg-secondary/80 text-white px-6 py-2 text-lg"
+                      aria-label="Open HealthBot"
+                    >
+                      <Bot className="mr-2 h-5 w-5" />
+                      Try HealthBot
+                    </Button>
+                  </SheetTrigger>
+                  <SheetContent className="sm:max-w-md w-[90vw]">
+                    <SheetHeader>
+                      <SheetTitle className="flex items-center gap-2">
+                        <Bot className="h-5 w-5" />
+                        HealthBot Assistant
+                      </SheetTitle>
+                      <SheetDescription>
+                        Ask me anything about diseases, symptoms, or health advice.
+                      </SheetDescription>
+                    </SheetHeader>
+                    <div className="mt-4 flex flex-col h-[80vh]">
+                      <div className="flex-1 overflow-y-auto p-4 space-y-4 mb-4 bg-gray-50 rounded-md">
+                        {botHistory.length === 0 ? (
+                          <div className="flex flex-col items-center justify-center h-full text-gray-500">
+                            <Bot className="h-16 w-16 mb-4 opacity-20" />
+                            <p>Ask me a health-related question to get started</p>
+                          </div>
+                        ) : (
+                          botHistory.map((item, idx) => (
+                            <div key={idx} className="space-y-2">
+                              <div className="flex gap-2 items-start">
+                                <div className="bg-primary text-white p-2 rounded-full h-7 w-7 flex items-center justify-center text-xs">
+                                  You
+                                </div>
+                                <div className="bg-gray-100 rounded-lg p-3 max-w-[85%]">
+                                  {item.question}
+                                </div>
+                              </div>
+                              <div className="flex gap-2 items-start">
+                                <div className="bg-secondary text-white p-2 rounded-full h-7 w-7 flex items-center justify-center text-xs">
+                                  <Bot className="h-4 w-4" />
+                                </div>
+                                <div className="bg-secondary/10 rounded-lg p-3 max-w-[85%]">
+                                  {item.answer}
+                                </div>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                        {isBotLoading && (
+                          <div className="flex justify-center">
+                            <div className="animate-pulse text-gray-500">HealthBot is thinking...</div>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="Ask about a health condition..."
+                          value={botQuestion}
+                          onChange={e => setBotQuestion(e.target.value)}
+                          onKeyDown={e => e.key === 'Enter' && handleAskBot()}
+                          className="flex-1"
+                          disabled={isBotLoading}
+                        />
+                        <Button 
+                          onClick={handleAskBot} 
+                          disabled={isBotLoading || !botQuestion.trim()}
+                          className="bg-secondary hover:bg-secondary/90"
+                        >
+                          <Bot className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </SheetContent>
+                </Sheet>
               </>
             ) : (
               <>
@@ -62,6 +191,78 @@ const Index = () => {
                         Manage Your Profile
                       </Button>
                     </Link>
+                    <Sheet>
+                      <SheetTrigger asChild>
+                        <Button className="bg-secondary hover:bg-secondary/80 text-white px-6 py-2">
+                          <Bot className="mr-2 h-5 w-5" />
+                          Ask HealthBot
+                        </Button>
+                      </SheetTrigger>
+                      <SheetContent className="sm:max-w-md w-[90vw]">
+                        <SheetHeader>
+                          <SheetTitle className="flex items-center gap-2">
+                            <Bot className="h-5 w-5" />
+                            HealthBot Assistant
+                          </SheetTitle>
+                          <SheetDescription>
+                            Ask me anything about diseases, symptoms, or health advice.
+                          </SheetDescription>
+                        </SheetHeader>
+                        <div className="mt-4 flex flex-col h-[80vh]">
+                          <div className="flex-1 overflow-y-auto p-4 space-y-4 mb-4 bg-gray-50 rounded-md">
+                            {botHistory.length === 0 ? (
+                              <div className="flex flex-col items-center justify-center h-full text-gray-500">
+                                <Bot className="h-16 w-16 mb-4 opacity-20" />
+                                <p>Ask me a health-related question to get started</p>
+                              </div>
+                            ) : (
+                              botHistory.map((item, idx) => (
+                                <div key={idx} className="space-y-2">
+                                  <div className="flex gap-2 items-start">
+                                    <div className="bg-primary text-white p-2 rounded-full h-7 w-7 flex items-center justify-center text-xs">
+                                      You
+                                    </div>
+                                    <div className="bg-gray-100 rounded-lg p-3 max-w-[85%]">
+                                      {item.question}
+                                    </div>
+                                  </div>
+                                  <div className="flex gap-2 items-start">
+                                    <div className="bg-secondary text-white p-2 rounded-full h-7 w-7 flex items-center justify-center text-xs">
+                                      <Bot className="h-4 w-4" />
+                                    </div>
+                                    <div className="bg-secondary/10 rounded-lg p-3 max-w-[85%]">
+                                      {item.answer}
+                                    </div>
+                                  </div>
+                                </div>
+                              ))
+                            )}
+                            {isBotLoading && (
+                              <div className="flex justify-center">
+                                <div className="animate-pulse text-gray-500">HealthBot is thinking...</div>
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex gap-2">
+                            <Input
+                              placeholder="Ask about a health condition..."
+                              value={botQuestion}
+                              onChange={e => setBotQuestion(e.target.value)}
+                              onKeyDown={e => e.key === 'Enter' && handleAskBot()}
+                              className="flex-1"
+                              disabled={isBotLoading}
+                            />
+                            <Button 
+                              onClick={handleAskBot} 
+                              disabled={isBotLoading || !botQuestion.trim()}
+                              className="bg-secondary hover:bg-secondary/90"
+                            >
+                              <Bot className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      </SheetContent>
+                    </Sheet>
                   </>
                 )}
                 {user?.role === 'doctor' && (
@@ -83,6 +284,86 @@ const Index = () => {
           </div>
         </div>
       </div>
+      
+      {/* Fixed HealthBot button for all users */}
+      {!isAuthenticated && (
+        <div className="fixed bottom-6 right-6 z-50">
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button 
+                className="h-14 w-14 rounded-full bg-secondary hover:bg-secondary/90 shadow-lg"
+                aria-label="Open HealthBot"
+              >
+                <Bot className="h-6 w-6" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent className="sm:max-w-md w-[90vw]">
+              <SheetHeader>
+                <SheetTitle className="flex items-center gap-2">
+                  <Bot className="h-5 w-5" />
+                  HealthBot Assistant
+                </SheetTitle>
+                <SheetDescription>
+                  Ask me anything about diseases, symptoms, or health advice.
+                </SheetDescription>
+              </SheetHeader>
+              <div className="mt-4 flex flex-col h-[80vh]">
+                <div className="flex-1 overflow-y-auto p-4 space-y-4 mb-4 bg-gray-50 rounded-md">
+                  {botHistory.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-full text-gray-500">
+                      <Bot className="h-16 w-16 mb-4 opacity-20" />
+                      <p>Ask me a health-related question to get started</p>
+                    </div>
+                  ) : (
+                    botHistory.map((item, idx) => (
+                      <div key={idx} className="space-y-2">
+                        <div className="flex gap-2 items-start">
+                          <div className="bg-primary text-white p-2 rounded-full h-7 w-7 flex items-center justify-center text-xs">
+                            You
+                          </div>
+                          <div className="bg-gray-100 rounded-lg p-3 max-w-[85%]">
+                            {item.question}
+                          </div>
+                        </div>
+                        <div className="flex gap-2 items-start">
+                          <div className="bg-secondary text-white p-2 rounded-full h-7 w-7 flex items-center justify-center text-xs">
+                            <Bot className="h-4 w-4" />
+                          </div>
+                          <div className="bg-secondary/10 rounded-lg p-3 max-w-[85%]">
+                            {item.answer}
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                  {isBotLoading && (
+                    <div className="flex justify-center">
+                      <div className="animate-pulse text-gray-500">HealthBot is thinking...</div>
+                    </div>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Ask about a health condition..."
+                    value={botQuestion}
+                    onChange={e => setBotQuestion(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleAskBot()}
+                    className="flex-1"
+                    disabled={isBotLoading}
+                  />
+                  <Button 
+                    onClick={handleAskBot} 
+                    disabled={isBotLoading || !botQuestion.trim()}
+                    className="bg-secondary hover:bg-secondary/90"
+                  >
+                    <Bot className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </SheetContent>
+          </Sheet>
+        </div>
+      )}
     </div>
   );
 };
