@@ -1,4 +1,3 @@
-
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/components/AuthContext';
@@ -13,9 +12,12 @@ import {
 } from "@/components/ui/sheet";
 import { useState } from 'react';
 import { Input } from '@/components/ui/input';
+import { askHealthBot, saveToHistory } from '@/utils/healthBot';
+import { useToast } from "@/hooks/use-toast";
 
 const Index = () => {
   const { isAuthenticated, user } = useAuth();
+  const { toast } = useToast();
   const [botQuestion, setBotQuestion] = useState('');
   const [botAnswer, setBotAnswer] = useState('');
   const [isBotLoading, setIsBotLoading] = useState(false);
@@ -27,34 +29,17 @@ const Index = () => {
     setBotAnswer('');
 
     try {
-      const response = await fetch('https://api.perplexity.ai/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer pk-lovable-demo`, // Replace with your Perplexity API key for production!
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          model: 'llama-3.1-sonar-small-128k-online',
-          messages: [
-            { role: 'system', content: 'You are an empathetic healthcare assistant. Respond only with clear, concise, medically accurate advice and answers regarding diseases, symptoms, and health conditions.' },
-            { role: 'user', content: botQuestion }
-          ],
-          temperature: 0.2,
-          max_tokens: 300
-        })
-      });
-      if (!response.ok) {
-        setBotAnswer('Sorry, I was unable to answer your question at this time.');
-        setIsBotLoading(false);
-        return;
-      }
-      const data = await response.json();
-      const answer = data.choices?.[0]?.message?.content || 'Sorry, I could not find an answer.';
+      const answer = await askHealthBot(botQuestion);
       
       // Save to history
-      setBotHistory(prev => [...prev, {question: botQuestion, answer}]);
+      setBotHistory(prev => saveToHistory(prev, botQuestion, answer));
       setBotAnswer(answer);
     } catch (err) {
+      toast({
+        title: "Error",
+        description: "There was a problem connecting to HealthBot. Using offline responses instead.",
+        variant: "destructive"
+      });
       setBotAnswer('Sorry, there was an error contacting HealthBot.');
     }
     setIsBotLoading(false);
