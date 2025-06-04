@@ -1,3 +1,4 @@
+import { supabase } from '@/integrations/supabase/client';
 
 interface BotMessage {
   question: string;
@@ -8,37 +9,25 @@ export async function askHealthBot(botQuestion: string): Promise<string> {
   if (!botQuestion.trim()) return '';
   
   try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer sk-demo-key`, // Replace with your OpenAI API key for production!
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-          { role: 'system', content: 'You are an empathetic healthcare assistant. Respond only with clear, concise, medically accurate advice and answers regarding diseases, symptoms, and health conditions.' },
-          { role: 'user', content: botQuestion }
-        ],
-        temperature: 0.2,
-        max_tokens: 300
-      })
+    const { data, error } = await supabase.functions.invoke('health-bot', {
+      body: { question: botQuestion }
     });
-    
-    if (!response.ok) {
-      console.error('HealthBot API error:', response.status, response.statusText);
+
+    if (error) {
+      console.error('HealthBot function error:', error);
       return getOfflineResponse(botQuestion);
     }
-    
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content;
-    
-    if (!content) {
-      console.error('No content in API response');
+
+    if (data?.fallback) {
+      console.log('Using fallback response due to API issues');
       return getOfflineResponse(botQuestion);
     }
-    
-    return content;
+
+    if (data?.answer) {
+      return data.answer;
+    }
+
+    return getOfflineResponse(botQuestion);
   } catch (err) {
     console.error('HealthBot error:', err);
     return getOfflineResponse(botQuestion);
