@@ -49,13 +49,13 @@ function getOfflineResponse(question: string): string {
   } else if (questionLower.includes('blood pressure') || questionLower.includes('hypertension')) {
     return 'Healthy blood pressure is typically around 120/80 mmHg. Lifestyle changes like regular exercise, reduced sodium intake, stress management, and maintaining a healthy weight can help manage blood pressure. Regular monitoring is important, especially if you have risk factors.';
   } else if (questionLower.includes('diabetes')) {
-    return 'Diabetes is a condition where your body either doesn't make enough insulin or can't effectively use the insulin it produces. Symptoms may include increased thirst, frequent urination, and fatigue. Management typically includes monitoring blood sugar, medication, proper diet, and regular exercise.';
+    return 'Diabetes is a condition where your body either does not make enough insulin or cannot effectively use the insulin it produces. Symptoms may include increased thirst, frequent urination, and fatigue. Management typically includes monitoring blood sugar, medication, proper diet, and regular exercise.';
   } else if (questionLower.includes('exercise') || questionLower.includes('workout')) {
     return 'Regular physical activity offers numerous health benefits including weight management, reduced risk of chronic diseases, stronger muscles and bones, and improved mental health. Aim for at least 150 minutes of moderate aerobic activity or 75 minutes of vigorous activity each week, along with muscle-strengthening activities.';
   } else if (questionLower.includes('diet') || questionLower.includes('nutrition')) {
     return 'A balanced diet rich in fruits, vegetables, whole grains, lean proteins, and healthy fats provides essential nutrients for good health. Limit processed foods, added sugars, and excessive sodium. Proper nutrition helps maintain a healthy weight and reduces the risk of chronic diseases.';
   } else {
-    return 'I apologize, but I\'m currently operating in offline mode due to connectivity issues. For specific medical advice, please consult a healthcare professional or try again later when the service is available.';
+    return "I apologize, but I'm currently operating in offline mode due to connectivity issues. For specific medical advice, please consult a healthcare professional or try again later when the service is available.";
   }
 }
 
