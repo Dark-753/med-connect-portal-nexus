@@ -8,14 +8,14 @@ export async function askHealthBot(botQuestion: string): Promise<string> {
   if (!botQuestion.trim()) return '';
   
   try {
-    const response = await fetch('https://api.perplexity.ai/chat/completions', {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer pk-lovable-demo`, // Replace with your Perplexity API key for production!
+        'Authorization': `Bearer sk-demo-key`, // Replace with your OpenAI API key for production!
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'llama-3.1-sonar-small-128k-online',
+        model: 'gpt-4o-mini',
         messages: [
           { role: 'system', content: 'You are an empathetic healthcare assistant. Respond only with clear, concise, medically accurate advice and answers regarding diseases, symptoms, and health conditions.' },
           { role: 'user', content: botQuestion }
